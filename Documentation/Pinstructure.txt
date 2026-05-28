@@ -1,0 +1,34 @@
+Pin-Structure
+
+
+Raspberry Pi 5:
+  __________________________________________________________________________________________________________
+ | Notes                       | Pin # |   Left    |   Right    | Pin # | Notes                            |
+ |-----------------------------|-------|-----------|------------|-------|----------------------------------|
+ |                             |   1   |  3.3V     |    5V      |   2   |                                  |
+ |                             |   3   | GPIO2     |    5V      |   4   |                                  |
+ |                             |   5   | GPIO3     |    GND     |   6   |                                  |
+ |                             |   7   | GPIO4     |  GPIO14    |   8   |                                  |
+ |                             |   9   | GND       |  GPIO15    |  10   | Button 1                         |
+ |                             |  11   | GPIO17    |  GPIO18    |  12   |                                  |
+ |                             |  13   | GPIO27    |    GND     |  14   |                                  |
+ |                             |  15   | GPIO22    |  GPIO23    |  16   |                                  |
+ |                             |  17   | 3.3V      |  GPIO24    |  18   |                                  |
+ | Button 3                    |  19   | GPIO10    |    GND     |  20   |                                  |
+ | Button 2                    |  21   | GPIO9     |  GPIO25    |  22   |                                  |
+ | Button 4                    |  23   | GPIO11    |  GPIO8     |  24   |                                  |
+ |                             |  25   | GND       |  GPIO7     |  26   |                                  |
+ |                             |  27   | ID_SD     |  ID_SC     |  28   |                                  |
+ |                             |  29   | GPIO5     |   GND      |  30   |                                  |
+ |                             |  31   | GPIO6     |  GPIO12    |  32   |                                  |
+ |                             |  33   | GPIO13    |   GND      |  34   |                                  |
+ |                             |  35   | GPIO19    |  GPIO16    |  36   |                                  |
+ |                             |  37   | GPIO26    |  GPIO20    |  38   |                                  |
+ |                             |  39   | GND       |  GPIO21    |  40   |                                  |
+  ----------------------------------------------------------------------------------------------------------
+                                           ↑ USB ports ↓
+
+
+
+
+-> Since we're currently using an expansion board, we're using multiple GND and 5V Pins

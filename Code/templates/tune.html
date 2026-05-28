@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Technorama — Tune</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='tune.css') }}">
+    <style>
+        .slider-outer {
+            position: relative;
+        }
+
+        .default-marker {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--gold, #c9a84c);
+            opacity: 0.5;
+            border-radius: 1px;
+            pointer-events: none;
+            transform: translateX(-50%);
+            z-index: 1;
+        }
+
+        .tick-row {
+            position: relative;
+        }
+
+        .tick-label-default {
+            position: absolute;
+            transform: translateX(-50%);
+            color: var(--gold, #c9a84c);
+            opacity: 0.7;
+            font-size: 0.68rem;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+<div class="panel">
+
+    <div class="header" id="desktop-header">
+        <h1 class="header-title">Techno<span>rama</span></h1>
+        <div class="header-rule"></div>
+        <nav class="nav" id="main-nav">
+            <a href="/" class="{{ 'active' if request.path == '/' else '' }}">Filters</a>
+            <a href="/tune" class="{{ 'active' if request.path == '/tune' else '' }}">Intensity</a>
+        </nav>
+    </div>
+
+    <div class="preset-bar" id="preset-bar">
+        <span class="preset-bar-label">Templates</span>
+        <div class="preset-pills" id="preset-pills"></div>
+    </div>
+
+    <div class="tune-grid" id="tune-grid">
+
+        <div id="cards"></div>
+
+        <div class="divider"></div>
+
+        <section id="preview-section"
+                 ondragover="handleDragOver(event)"
+                 ondragleave="handleDragLeave(event)"
+                 ondrop="handleDrop(event)">
+
+            <div class="preview-header">
+                <span class="preview-title">Live Preview <span id="preview-filter-name"
+                                                               style="color:var(--gold);font-weight:500"></span></span>
+                <div class="preview-controls">
+                    <span class="preview-status" id="preview-status"></span>
+                    <button class="btn-upload" onclick="document.getElementById('file-input').click()">
+                        Upload photo
+                    </button>
+                </div>
+            </div>
+
+            <div class="preview-body" id="preview-body">
+
+                <button class="btn-upload btn-upload-overlay"
+                        onclick="document.getElementById('file-input').click()">
+                    ⬆ Upload
+                </button>
+
+                <div class="preview-empty" id="preview-empty">
+                    <svg class="preview-empty-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="4" y="10" width="40" height="30" rx="3" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="17" cy="21" r="4" stroke="currentColor" stroke-width="2"/>
+                        <path d="M4 34l10-8 7 6 8-10 15 12" stroke="currentColor" stroke-width="2"
+                              stroke-linejoin="round"/>
+                    </svg>
+                    <p>Upload a photo to preview filter effects</p>
+                    <p style="opacity:0.5">Drag &amp; drop or click <em>Upload photo</em></p>
+                </div>
+
+                <div class="split-wrap" id="split-wrap">
+                    <img id="img-before" src="" alt="Original" draggable="false">
+                    <div class="split-after" id="split-after">
+                        <img id="img-after" src="" alt="Processed" draggable="false">
+                        <div class="render-overlay" id="render-overlay">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                    <div class="split-handle" id="split-handle"></div>
+                    <span class="split-label split-label-before">Before</span>
+                    <span class="split-label split-label-after">After</span>
+                </div>
+            </div>
+        </section>
+
+        <input type="file" id="file-input" accept="image/*" onchange="handleFileSelect(this)">
+
+    </div>
+
+    <div class="footer">
+        <button class="btn-reset" onclick="resetAll()">Reset all</button>
+        <span class="save-status" id="save-status"></span>
+    </div>
+
+</div>
+
+<script>
+    /* ══════════════════════════════════════════════════════════════════
+       State
+    ══════════════════════════════════════════════════════════════════ */
+    let FILTER_META = {};
+    let CATEGORIES = [];
+    let filterOrder = [];
+    let intensities = {};
+    let defaultPcts = {};
+    let presets = [];
+    let activePreset = null;
+    let hasPreviewImage = false;
+    let splitPct = 50;
+    let renderTimer = null;
+    let renderGeneration = 0;
+    let activeRenderFilter = null;
+    let saveTimer = null;
+    let filterEnabled = {};
+    let activeCat = 'skin';
+
+    /* ══════════════════════════════════════════════════════════════════
+       Helpers
+    ══════════════════════════════════════════════════════════════════ */
+    function getActiveFirstSortedKeys() {
+        const activeKeys = [], disabledKeys = [];
+        for (const key of filterOrder) {
+            if (filterEnabled[key] !== false) activeKeys.push(key);
+            else disabledKeys.push(key);
+        }
+        return [...activeKeys, ...disabledKeys];
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       Boot
+    ══════════════════════════════════════════════════════════════════ */
+    async function load() {
+        try {
+            const [metaRes, intRes, hasRes, preRes] = await Promise.all([
+                fetch('/filter-meta'),
+                fetch('/filter-intensities'),
+                fetch('/preview/has-image'),
+                fetch('/presets'),
+            ]);
+
+            const metaData = await metaRes.json();
+
+            FILTER_META = Object.fromEntries(
+                metaData.filters.map(f => [f.name, {
+                    label: f.label,
+                    hint: f.hint,
+                    default_pct: f.default_pct,
+                }])
+            );
+
+            filterOrder = metaData.filters.map(f => f.name);
+
+            metaData.filters.forEach(f => {
+                filterEnabled[f.name] = f.enabled;
+                defaultPcts[f.name] = f.default_pct;
+                intensities[f.name] = f.default_pct;
+            });
+
+            CATEGORIES = metaData.categories;
+
+            const intData = await intRes.json();
+            Object.assign(intensities, intData.intensities);
+
+            hasPreviewImage = (await hasRes.json()).has_image;
+            presets = (await preRes.json()).presets;
+
+        } catch (e) {
+            console.error('Failed to load filter metadata:', e);
+            return;
+        }
+
+        render();
+        renderPresets();
+        buildMobileSheet();
+
+        if (hasPreviewImage) {
+            initSplitView();
+            loadOriginal();
+            scheduleRender(0);
+        }
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       Card HTML
+    ══════════════════════════════════════════════════════════════════ */
+    function cardHTML(key) {
+        const meta = FILTER_META[key];
+        const pct = Math.round(intensities[key] ?? defaultPcts[key] ?? 0);
+        const defPct = defaultPcts[key] ?? 0;
+        const isZero = pct === 0;
+        const isDisabled = filterEnabled[key] === false;
+
+        return `
+        <div class="filter-card${isZero ? ' is-zero' : ''}${isDisabled ? ' is-disabled' : ''}" id="card-${key}"
+             onclick="selectPreviewFilter('${key}', event)">
+            <div class="card-top">
+                <span class="card-name">${meta.label}</span>
+                <span class="card-pct${isZero ? ' zero' : ''}" id="pct-${key}">${pct}%</span>
+            </div>
+            <p class="card-hint">${meta.hint}</p>
+            <p class="zero-label">effect disabled</p>
+            <div class="slider-outer">
+                <div class="default-marker" id="defmark-${key}"
+                     style="left: calc(${defPct}% * (100% - 16px) / 100% + 8px)"
+                     title="Default: ${defPct}%"></div>
+                <div class="slider-wrap">
+                    <div class="slider-track-bg"></div>
+                    <div class="slider-track-fill" id="fill-${key}"
+                         style="width:${pct}%;background:${fillColor(pct)}"></div>
+                    <input type="range" min="0" max="100" step="1" value="${pct}"
+                           class="${isZero ? 'zero-state' : ''}"
+                           oninput="onSlide('${key}', this.value)"
+                           onchange="save('${key}', this.value)">
+                </div>
+            </div>
+            <div class="tick-row">
+                <span class="tick-label">off</span>
+                <span class="tick-label-default" style="left: calc(${defPct}% * (100% - 16px) / 100% + 8px)">default</span>
+                <span class="tick-label" style="text-align:right;margin-left:auto">max</span>
+            </div>
+        </div>`;
+    }
+
+    function fillColor(pct) {
+        if (pct === 0) return '#6a2010';
+        if (pct > 70) return 'var(--gold-dim)';
+        return 'var(--green-dim)';
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       Desktop render
+    ══════════════════════════════════════════════════════════════════ */
+    function render() {
+        const container = document.getElementById('cards');
+        const sortedKeys = getActiveFirstSortedKeys();
+        container.innerHTML = sortedKeys.map(key => cardHTML(key)).join('');
+    }
+
+    function selectPreviewFilter(key, event) {
+        if (event && event.target.type === 'range') return;
+        document.querySelectorAll('.filter-card').forEach(c => c.classList.remove('previewing'));
+        document.querySelectorAll(`#card-${key}`).forEach(c => c.classList.add('previewing'));
+        document.getElementById('preview-filter-name').textContent = '— ' + FILTER_META[key].label;
+        const mob = document.getElementById('preview-filter-name-mobile');
+        if (mob) mob.textContent = '— ' + FILTER_META[key].label;
+        if (hasPreviewImage) scheduleRender(0, key);
+    }
+
+    function onSlide(key, rawVal) {
+        const pct = parseInt(rawVal);
+        const isZero = pct === 0;
+        intensities[key] = pct;
+
+        document.querySelectorAll(`#pct-${key}`).forEach(el => {
+            el.textContent = pct + '%';
+            el.className = 'card-pct' + (isZero ? ' zero' : '');
+        });
+        document.querySelectorAll(`#fill-${key}`).forEach(el => {
+            el.style.width = pct + '%';
+            el.style.background = fillColor(pct);
+        });
+        document.querySelectorAll(`#card-${key}`).forEach(el => {
+            el.classList.toggle('is-zero', isZero);
+            el.classList.add('previewing');
+        });
+        document.querySelectorAll('.filter-card').forEach(c => {
+            if (c.id !== `card-${key}`) c.classList.remove('previewing');
+        });
+
+        document.getElementById('preview-filter-name').textContent = '— ' + FILTER_META[key].label;
+        const mob = document.getElementById('preview-filter-name-mobile');
+        if (mob) mob.textContent = '— ' + FILTER_META[key].label;
+        if (hasPreviewImage) scheduleRender(600, key);
+    }
+
+    async function save(key, val) {
+        intensities[key] = parseInt(val);
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(async () => {
+            try {
+                await fetch('/filter-intensities', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({intensities}),
+                });
+                setStatus('Saved', 'saved');
+            } catch (e) {
+                setStatus('Error saving', 'error');
+            }
+        }, 400);
+    }
+
+    async function resetAll() {
+        filterOrder.forEach(k => {
+            intensities[k] = defaultPcts[k] ?? 0;
+        });
+        render();
+        renderSheetCards();
+        await fetch('/filter-intensities', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({intensities}),
+        });
+        setStatus('Reset', 'saved');
+        if (hasPreviewImage) scheduleRender(0);
+    }
+
+    function setStatus(msg, cls) {
+        ['save-status', 'save-status-mobile'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = msg;
+            el.className = 'save-status ' + cls;
+            setTimeout(() => {
+                el.textContent = '';
+                el.className = 'save-status';
+            }, 2000);
+        });
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       Presets
+    ══════════════════════════════════════════════════════════════════ */
+    function renderPresets() {
+        const container = document.getElementById('preset-pills');
+        container.innerHTML = presets.map(p => `
+            <button class="preset-pill ${activePreset === p.id ? 'active' : ''}"
+                    data-hint="${p.hint}"
+                    onclick="applyPreset('${p.id}', this)">
+                ${p.label}
+            </button>`).join('');
+    }
+
+    async function applyPreset(id, btn) {
+        btn.classList.add('applying');
+        try {
+            const res = await fetch(`/presets/${id}/apply`, {method: 'POST'});
+            const data = await res.json();
+            intensities = data.intensities;
+            activePreset = id;
+            render();
+            renderSheetCards();
+            renderPresets();
+            setStatus('Template loaded', 'saved');
+            if (hasPreviewImage) scheduleRender(0, activeRenderFilter);
+        } catch (e) {
+            setStatus('Fehler', 'error');
+        } finally {
+            btn.classList.remove('applying');
+        }
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       Mobile sheet
+    ══════════════════════════════════════════════════════════════════ */
+    function buildMobileSheet() {
+        if (document.getElementById('mobile-sheet')) return;
+        const sheet = document.createElement('div');
+        sheet.id = 'mobile-sheet';
+        sheet.innerHTML = `
+        <div id="sheet-handle"><div id="sheet-handle-pill"></div></div>
+        <div class="tab-components">
+            <div id="sheet-tabs"></div>
+            <div style="display:flex;gap:0.5rem;">
+                <button class="btn-reset" id="fullscreen-toggle" style="font-size:0.7rem;padding:0.4rem 0.6rem;">⤢ Full</button>
+            </div>
+        </div>
+        <div id="sheet-cards"></div>
+        <div id="mobile-footer"><span class="save-status" id="save-status-mobile"></span></div>`;
+        document.querySelector('.panel').appendChild(sheet);
+
+        // Floating exit button — outside the sheet, above it
+        if (!document.getElementById('exit-fullscreen-btn')) {
+            const exitBtn = document.createElement('button');
+            exitBtn.id = 'exit-fullscreen-btn';
+            exitBtn.textContent = '✕ Exit';
+            document.querySelector('.panel').appendChild(exitBtn);
+        }
+
+        let prevHeight = 50;
+        const fullVh = 10;
+        let isFull = false;
+
+        const toggleBtn = document.getElementById('fullscreen-toggle');
+        const exitFloatBtn = document.getElementById('exit-fullscreen-btn');
+
+        const setSheetHeight = (vh, animate) => {
+            sheet.style.transition = animate ? 'height 0.25s cubic-bezier(0.2,0.9,0.4,1.1)' : 'none';
+            sheet.style.height = vh + 'vh';
+        };
+
+        exitFloatBtn.addEventListener('click', () => {
+            setSheetHeight(prevHeight, true);
+            isFull = false;
+            toggleBtn.textContent = '⤢ Full';
+            toggleBtn.style.display = '';
+            exitFloatBtn.classList.remove('visible');
+        });
+
+        toggleBtn.addEventListener('click', () => {
+            if (isFull) {
+                setSheetHeight(prevHeight, true);
+                isFull = false;
+                toggleBtn.textContent = '⤢ Full';
+                toggleBtn.style.display = '';
+                exitFloatBtn.classList.remove('visible');
+            } else {
+                const curVh = (sheet.getBoundingClientRect().height / globalThis.innerHeight) * 100;
+                prevHeight = Math.min(Math.max(curVh, 25), 75);
+                setSheetHeight(fullVh, true);
+                isFull = true;
+                toggleBtn.textContent = '⤢ Full';
+                toggleBtn.style.display = 'none';
+                exitFloatBtn.classList.add('visible');
+            }
+        });
+
+        renderSheetTabs();
+        renderSheetCards();
+        bindSheetDrag(sheet, toggleBtn, exitFloatBtn, () => isFull, (v) => {
+            isFull = v;
+        });
+    }
+
+    function renderSheetTabs() {
+        const container = document.getElementById('sheet-tabs');
+        if (!container) return;
+        container.innerHTML = CATEGORIES.map(cat => `
+            <button class="sheet-tab ${cat.id === activeCat ? 'active' : ''}"
+                    onclick="switchCat('${cat.id}')">
+                ${cat.label}
+            </button>`).join('');
+    }
+
+    function switchCat(id) {
+        activeCat = id;
+        renderSheetTabs();
+        renderSheetCards();
+    }
+
+    function renderSheetCards() {
+        const container = document.getElementById('sheet-cards');
+        if (!container) return;
+        const cat = CATEGORIES.find(c => c.id === activeCat);
+        if (!cat) return;
+        const allSortedKeys = getActiveFirstSortedKeys();
+        const orderedCategoryKeys = allSortedKeys.filter(k => cat.keys.includes(k));
+        container.innerHTML = orderedCategoryKeys.map(key => cardHTML(key)).join('');
+    }
+
+    function bindSheetDrag(sheet, toggleBtn, exitFloatBtn, getIsFull, setIsFull) {
+        const handle = document.getElementById('sheet-handle');
+        const SNAP_LOW = 10, SNAP_MID = 50, SNAP_HIGH = 90;
+        let startY, startH;
+
+        function setHeight(vh, animate) {
+            sheet.style.transition = animate ? 'height 0.25s cubic-bezier(0.2,0.9,0.4,1.1)' : 'none';
+            sheet.style.height = vh + 'vh';
+        }
+
+        function startDrag(e) {
+            e.preventDefault();
+            handle.classList.add('dragging');
+            startY = e.touches ? e.touches[0].clientY : e.clientY;
+            startH = sheet.getBoundingClientRect().height;
+
+            const onMove = ev => {
+                const clientY = ev.touches ? ev.touches[0].clientY : ev.clientY;
+                const delta = startY - clientY;
+                let newHeight = Math.max(
+                    globalThis.innerHeight * (SNAP_LOW / 100),
+                    Math.min(globalThis.innerHeight * (SNAP_HIGH / 100), startH + delta)
+                );
+                sheet.style.transition = 'none';
+                sheet.style.height = newHeight + 'px';
+                // sync bar during drag using px→vh conversion
+            };
+
+            const onUp = () => {
+                handle.classList.remove('dragging');
+                globalThis.removeEventListener('mousemove', onMove);
+                globalThis.removeEventListener('touchmove', onMove);
+                globalThis.removeEventListener('mouseup', onUp);
+                globalThis.removeEventListener('touchend', onUp);
+                const curVh = (sheet.getBoundingClientRect().height / globalThis.innerHeight) * 100;
+                let target;
+                if (curVh < (SNAP_LOW + SNAP_MID) / 2) target = SNAP_LOW;
+                else if (curVh < (SNAP_MID + SNAP_HIGH) / 2) target = SNAP_MID;
+                else target = SNAP_HIGH;
+                setHeight(target, true);
+                const nowFull = (target === SNAP_LOW);
+                setIsFull(nowFull);
+                toggleBtn.textContent = '⤢ Full';
+                if (nowFull) exitFloatBtn.classList.add('visible');
+                else exitFloatBtn.classList.remove('visible');
+            };
+
+            globalThis.addEventListener('mousemove', onMove, {passive: false});
+            globalThis.addEventListener('touchmove', onMove, {passive: false});
+            globalThis.addEventListener('mouseup', onUp);
+            globalThis.addEventListener('touchend', onUp);
+        }
+
+        handle.addEventListener('mousedown', startDrag);
+        handle.addEventListener('touchstart', startDrag, {passive: false});
+        setHeight(SNAP_MID, false);
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       Preview rendering
+    ══════════════════════════════════════════════════════════════════ */
+    function setPreviewStatus(msg, cls = '') {
+        const el = document.getElementById('preview-status');
+        el.textContent = msg;
+        el.className = 'preview-status ' + cls;
+        const mob = document.getElementById('preview-status-mobile');
+        if (mob) {
+            mob.textContent = msg;
+            mob.className = 'preview-status ' + cls;
+        }
+    }
+
+    function scheduleRender(delayMs, filterKey = null) {
+        activeRenderFilter = filterKey;
+        clearTimeout(renderTimer);
+        renderTimer = setTimeout(doRender, delayMs);
+    }
+
+    async function doRender() {
+        const gen = ++renderGeneration;
+        const filterKey = activeRenderFilter;
+        document.getElementById('render-overlay').classList.add('visible');
+        setPreviewStatus('Rendering…', 'rendering');
+        try {
+            const params = new URLSearchParams({t: Date.now()});
+            if (filterKey) params.set('filters', filterKey);
+            const resp = await fetch(`/preview/render?${params}`);
+            if (!resp.ok) throw new Error(await resp.text());
+            if (gen !== renderGeneration) return;
+            const blob = await resp.blob();
+            const objUrl = URL.createObjectURL(blob);
+            const imgAfter = document.getElementById('img-after');
+            const prev = imgAfter.src;
+            imgAfter.src = objUrl;
+            if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+            setPreviewStatus('Done', 'done');
+            setTimeout(() => setPreviewStatus('', ''), 1500);
+        } catch (e) {
+            if (gen !== renderGeneration) return;
+            setPreviewStatus('Render error', 'error');
+            console.error('[Preview] Render failed:', e);
+        } finally {
+            if (gen === renderGeneration)
+                document.getElementById('render-overlay').classList.remove('visible');
+        }
+    }
+
+    function loadOriginal() {
+        const imgBefore = document.getElementById('img-before');
+        imgBefore.src = `/preview/original?t=${Date.now()}`;
+        imgBefore.onload = () => applySplit(splitPct);
+    }
+
+    function initSplitView() {
+        document.getElementById('preview-empty').style.display = 'none';
+        const wrap = document.getElementById('split-wrap');
+        wrap.style.display = 'block';
+        applySplit(splitPct);
+        bindSplitDrag();
+    }
+
+    function applySplit(pct) {
+        splitPct = Math.max(2, Math.min(98, pct));
+        document.getElementById('split-after').style.clipPath =
+            `inset(0 0 0 ${splitPct}%)`;
+        document.getElementById('split-handle').style.left = splitPct + '%';
+    }
+
+    function bindSplitDrag() {
+        const handle = document.getElementById('split-handle');
+        const wrap = document.getElementById('split-wrap');
+
+        function pctFromEvent(e) {
+            const rect = wrap.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            return ((clientX - rect.left) / rect.width) * 100;
+        }
+
+        function startDrag(e) {
+            e.preventDefault();
+            const onMove = ev => applySplit(pctFromEvent(ev));
+            const onUp = () => {
+                globalThis.removeEventListener('mousemove', onMove);
+                globalThis.removeEventListener('touchmove', onMove);
+                globalThis.removeEventListener('mouseup', onUp);
+                globalThis.removeEventListener('touchend', onUp);
+            };
+            globalThis.addEventListener('mousemove', onMove, {passive: false});
+            globalThis.addEventListener('touchmove', onMove, {passive: false});
+            globalThis.addEventListener('mouseup', onUp);
+            globalThis.addEventListener('touchend', onUp);
+        }
+
+        handle.addEventListener('mousedown', startDrag);
+        handle.addEventListener('touchstart', startDrag, {passive: false});
+        wrap.addEventListener('click', e => {
+            if (e.target === handle) return;
+            applySplit(pctFromEvent(e));
+        });
+    }
+
+    /* ── Image upload ── */
+    async function uploadImage(file) {
+        if (!file || !file.type.startsWith('image/')) return;
+        setPreviewStatus('Uploading…', 'rendering');
+        const fd = new FormData();
+        fd.append('image', file);
+        try {
+            const resp = await fetch('/preview/upload', {method: 'POST', body: fd});
+            if (!resp.ok) throw new Error(await resp.text());
+            hasPreviewImage = true;
+            initSplitView();
+            loadOriginal();
+            scheduleRender(200);
+        } catch (e) {
+            setPreviewStatus('Upload error', 'error');
+            console.error('[Upload]', e);
+        }
+    }
+
+    function handleFileSelect(input) {
+        if (input.files && input.files[0]) uploadImage(input.files[0]);
+        input.value = '';
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        document.getElementById('preview-section').classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+        if (!e.currentTarget.contains(e.relatedTarget))
+            document.getElementById('preview-section').classList.remove('drag-over');
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        document.getElementById('preview-section').classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) uploadImage(file);
+    }
+
+    load();
+</script>
+</body>
+</html>
