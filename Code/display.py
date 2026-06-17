@@ -4,7 +4,7 @@ import numpy as np
 import threading
 from utils import random_list, print_text, _fit_image
 from config import (
-    IMAGE_PATHS, button_to_index, SCREEN_H, SCREEN_W, MONITOR_POSITIONS
+    IMAGE_PATHS, button_to_index, SCREEN_H, SCREEN_W, MONITOR_POSITIONS, WAITING_TEXT
 )
 import time
 
@@ -28,7 +28,7 @@ class DisplayManager:
             cv2.waitKey(100)
 
         self.waiting_frame = np.zeros((SCREEN_H, SCREEN_W, 3), dtype=np.uint8)
-        self.waiting_frame = print_text(self.waiting_frame, "Warten...", font_scale=2, position="center",
+        self.waiting_frame = print_text(self.waiting_frame, WAITING_TEXT, font_scale=2, position="center",
                                         style="outline")
         self.reset_monitors = False
 
