@@ -198,28 +198,30 @@ class AlignmentGuide:
         else:
             color = COLOR_NO_FACE
 
-        # --- Cached oval fill ---
-        # The fill overlay only depends on frame size and color (3 possible
-        # values), so we pre-render it once and reuse it every frame.
         if OVAL_FILL_ALPHA > 0:
             cache_key = (w, h, color)
             if cache_key not in self._oval_fill_cache:
-                temp_overlay = np.zeros((h, w, 3), dtype=np.uint8)
-                cv2.ellipse(temp_overlay, (cx, cy), (rx, ry), 0, 0, 360, color, -1)
-                self._oval_fill_cache[cache_key] = temp_overlay
-            cv2.addWeighted(self._oval_fill_cache[cache_key], OVAL_FILL_ALPHA,
-                            out, 1 - OVAL_FILL_ALPHA, 0, out)
+                mask = np.zeros((h, w), dtype=np.uint8)
+                cv2.ellipse(mask, (cx, cy), (rx, ry), 0, 0, 360, 255, -1)
+                self._oval_fill_cache[cache_key] = mask
+            mask = self._oval_fill_cache[cache_key]
+
+            colored = np.empty_like(out)
+            colored[:] = color
+            blended = cv2.addWeighted(colored, OVAL_FILL_ALPHA, out, 1 - OVAL_FILL_ALPHA, 0)
+            out = np.where(mask[:, :, None] == 255, blended, out)
 
         if self.flash_active and self.flash_intensity > 0:
-            flash_color = (0, 255, 0)  # Green
-            # Create a temporary flash overlay
-            flash_overlay = np.zeros((h, w, 3), dtype=np.uint8)
-            cv2.ellipse(flash_overlay, (cx, cy), (rx, ry), 0, 0, 360, flash_color, -1)
-            # Blend with current frame using flash_intensity as alpha
-            alpha = self.flash_intensity * 0.8  # Max 80% opacity
-            cv2.addWeighted(flash_overlay, alpha, out, 1 - alpha, 0, out)
+            flash_color = (0, 255, 0)
+            mask = np.zeros((h, w), dtype=np.uint8)
+            cv2.ellipse(mask, (cx, cy), (rx, ry), 0, 0, 360, 255, -1)
 
-            # Update flash decay
+            alpha = self.flash_intensity * 0.8
+            colored = np.empty_like(out)
+            colored[:] = flash_color
+            blended = cv2.addWeighted(colored, alpha, out, 1 - alpha, 0)
+            out = np.where(mask[:, :, None] == 255, blended, out)
+
             self.update_flash()
 
         cv2.ellipse(out, (cx, cy), (rx, ry), 0, 0, 360, color, OVAL_THICKNESS,
