@@ -95,7 +95,7 @@ class HandleFlow:
         def _filter_progress(index, total):
             progress = FILTER_START + (index / total) * (FILTER_END - FILTER_START)
             if index < total:
-                self.display.show_loading(f"Filter {index + 1} wird angewendet", progress)
+                self.display.show_loading(f"Filter {index + 1} wird angewendet...", progress)
             else:
                 self.display.show_loading("Filter angewendet...", progress)
 
@@ -173,7 +173,7 @@ class HandleFlow:
 
         used_keys = ctx["used_keys"]
         if not used_keys:
-            self.display.show_loading("Kein Gesicht erkannt")
+            self.display.show_loading("Kein Gesicht erkannt.")
             time.sleep(2.0)
             return "live"
 
@@ -247,11 +247,11 @@ class HandleFlow:
         if ctx.get("reveal_start") is None:
             ctx["reveal_start"] = now
             ctx["prompt_shown"] = False
-            canvas = show_changed_grid(ctx, "Hier ist was sich verändert hat", "top")
+            canvas = show_changed_grid(ctx, "Hier ist was sich verändert hat.", "top")
             self.display.update_frame(canvas, flip=False)
 
         if not ctx["prompt_shown"] and now - ctx["reveal_start"] >= 10:
-            canvas = show_changed_grid(ctx, "Drücke einen Knopf, um fortzufahren", "bottom", 1)
+            canvas = show_changed_grid(ctx, "Drücke einen Knopf, um fortzufahren.", "bottom", 1)
             self.display.update_frame(canvas, flip=False)
             ctx["prompt_shown"] = True
 
