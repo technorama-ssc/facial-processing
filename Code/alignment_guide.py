@@ -67,6 +67,10 @@ class AlignmentGuide:
         self._oval_fill_cache: dict = {}
         self._text_cache: dict = {}
 
+        self.flash_intensity = 0.0
+        self.flash_active = False
+        self.flash_decay_rate = 0.05
+
         self.draw_hair_mask: bool = False
 
         self.hair_threshold = HAIR_THRESHOLD
@@ -163,6 +167,19 @@ class AlignmentGuide:
                 and hair_ok
         )
 
+    def trigger_flash(self):
+        """Trigger a flash effect."""
+        self.flash_intensity = 1.0
+        self.flash_active = True
+
+    def update_flash(self):
+        """Decay flash intensity each frame."""
+        if self.flash_active:
+            self.flash_intensity -= self.flash_decay_rate
+            if self.flash_intensity <= 0:
+                self.flash_intensity = 0
+                self.flash_active = False
+
     def draw(self, frame: np.ndarray, landmarks=None) -> np.ndarray:
         """Return a new frame with landmarks drawn."""
         out = frame.copy() if frame is not None else None
@@ -192,6 +209,18 @@ class AlignmentGuide:
                 self._oval_fill_cache[cache_key] = temp_overlay
             cv2.addWeighted(self._oval_fill_cache[cache_key], OVAL_FILL_ALPHA,
                             out, 1 - OVAL_FILL_ALPHA, 0, out)
+
+        if self.flash_active and self.flash_intensity > 0:
+            flash_color = (0, 255, 0)  # Green
+            # Create a temporary flash overlay
+            flash_overlay = np.zeros((h, w, 3), dtype=np.uint8)
+            cv2.ellipse(flash_overlay, (cx, cy), (rx, ry), 0, 0, 360, flash_color, -1)
+            # Blend with current frame using flash_intensity as alpha
+            alpha = self.flash_intensity * 0.8  # Max 80% opacity
+            cv2.addWeighted(flash_overlay, alpha, out, 1 - alpha, 0, out)
+
+            # Update flash decay
+            self.update_flash()
 
         cv2.ellipse(out, (cx, cy), (rx, ry), 0, 0, 360, color, OVAL_THICKNESS,
                     lineType=cv2.LINE_AA)

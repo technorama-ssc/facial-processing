@@ -3,7 +3,7 @@ import threading
 import time
 import cv2
 from utils import print_text, _fit_image
-from config import button_to_index, ORIGINAL_KEY, IMAGE_PATHS, SCREEN_W, DIFF_PATHS, SCREEN_H, FILTER_END, FILTER_START
+from config import button_to_index, ORIGINAL_KEY, IMAGE_PATHS, SCREEN_W, DIFF_PATHS, SCREEN_H, FILTER_END, FILTER_START, COUNTDOWN
 from hardware import HardwareManager
 from display import DisplayManager
 from face_enhance import FaceEnhancer
@@ -148,20 +148,20 @@ class HandleFlow:
         else:
             self.aligned_since = None
 
-        held_3s = self.aligned_since is not None and time.time() - self.aligned_since >= 3.0
+        countdown_time = self.aligned_since is not None and time.time() - self.aligned_since >= COUNTDOWN
 
-        if held_3s:
+        if countdown_time:
+            self.alignment_guide.trigger_flash()
+            frame = self.alignment_guide.draw(frame, landmarks)
+            self.display.update_frame(frame, flip=False)
+            time.sleep(0.15)
+
             self.aligned_since = None
             ctx["snapshot"] = raw
             ctx["used_keys"] = None
             ctx["processing_done"] = False
             threading.Thread(target=self._run_processing, args=(ctx,), daemon=True).start()
             return "processing"
-
-        if self.aligned_since is not None and not held_3s:
-            elapsed = time.time() - self.aligned_since
-            remaining = int(3.0 - elapsed) + 1
-            frame = print_text(frame, str(remaining), font_scale=2, position="center", style="outline")
 
         self.display.update_frame(frame, flip=False)
 
