@@ -294,8 +294,7 @@ class HandleFlow:
                 self.display.update_frame(tuple(filtered_list), flip=False)
                 return "reveal"
 
-            # Auto-exit after 5 seconds total in filtered stage
-            if now - ctx["reveal_start"] >= 5.0:
+            if now - ctx["reveal_start"] >= 30.0:
                 ctx["reveal_stage"] = None
                 ctx["prompt_shown"] = False
                 ctx["reveal_start"] = None
