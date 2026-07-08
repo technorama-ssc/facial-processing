@@ -1,9 +1,12 @@
+# handle_flow.py - Updated version
+
 import logging
 import threading
 import time
 import cv2
 from utils import print_text, _fit_image
-from config import button_to_index, ORIGINAL_KEY, IMAGE_PATHS, SCREEN_W, DIFF_PATHS, SCREEN_H, FILTER_END, FILTER_START, COUNTDOWN
+from config import button_to_index, ORIGINAL_KEY, IMAGE_PATHS, SCREEN_W, DIFF_PATHS, SCREEN_H, FILTER_END, FILTER_START, \
+    COUNTDOWN
 from hardware import HardwareManager
 from display import DisplayManager
 from face_enhance import FaceEnhancer
@@ -11,7 +14,39 @@ from alignment_guide import AlignmentGuide
 from helper_functions import _apply_filters, prepare_frame
 from wrinkles import CombinedWrinkleDrawer
 
+
+# ================================================================
+# NEW: Function to show colored diff overlay on the grid
+# ================================================================
+def show_colored_grid(ctx):
+    """
+    Returns a tuple of 4 canvases showing the colored diff overlay.
+    Uses the grid_clean as base and overlays the color-coded regions.
+    """
+    canvases = list(ctx.get("grid_clean", []))
+    if not canvases:
+        return None
+
+    cell_keys = ctx.get("cell_keys", [])
+    result = []
+
+    for i, canvas in enumerate(canvases):
+        c = canvas.copy()
+        key = cell_keys[i] if i < len(cell_keys) else None
+
+        # Load the diff image for this cell
+        if key and key in DIFF_PATHS:
+            img = cv2.imread(DIFF_PATHS[key])
+            if img is not None:
+                img = _fit_image(img, SCREEN_W, SCREEN_H)
+                c[:] = img
+        result.append(c)
+
+    return tuple(result)
+
+
 def show_changed_grid(ctx, text, position, font_scale=1):
+    """Legacy function - kept for compatibility."""
     canvases = list(ctx["grid_clean"])
     cell_keys = ctx["cell_keys"]
     result = []
@@ -30,12 +65,92 @@ def show_changed_grid(ctx, text, position, font_scale=1):
 
 
 def _handle_confirm_wait(just_pressed, ctx):
+    """Wait state after user selects an image - now transitions to reveal."""
     if time.time() - ctx["confirm_time"] >= 1.0:
         return "reveal"
     return "confirm_wait"
 
 
+def _handle_reveal_auto(just_pressed, ctx):
+    """
+    NEW: Handles the reveal state with auto-timer and button press.
+    Shows colored overlay -> waits -> shows filtered images -> waits -> goes to live.
+    """
+    now = time.time()
+
+    # ── Stage 1: Show colored diff overlay ──────────────────────────
+    if ctx.get("reveal_stage") is None:
+        ctx["reveal_stage"] = "colored"
+        ctx["reveal_start"] = now
+
+        colored_canvases = show_colored_grid(ctx)
+        if colored_canvases:
+            # Add overlay text
+            colored_list = list(colored_canvases)
+            for i in range(len(colored_list)):
+                colored_list[i] = print_text(
+                    colored_list[i],
+                    "🔍 Veränderungen hervorgehoben",
+                    font_scale=1.0,
+                    position="top",
+                    style="pill"
+                )
+            ctx["_display"] = display  # We'll pass this differently
+            ctx["_colored_canvases"] = tuple(colored_list)
+            ctx["_filtered_canvases"] = None
+        return "reveal"
+
+    # ── Stage 2: After 3s, switch to filtered images ───────────────
+    if ctx["reveal_stage"] == "colored":
+        if now - ctx["reveal_start"] >= 3.0:  # Show colored for 3 seconds
+            ctx["reveal_stage"] = "filtered"
+            ctx["reveal_start"] = now
+
+            # Show filtered images (no overlay)
+            filtered_canvases = list(ctx["grid_clean"])
+            for i in range(len(filtered_canvases)):
+                filtered_canvases[i] = print_text(
+                    filtered_canvases[i],
+                    "✨ Ergebnis",
+                    font_scale=1.0,
+                    position="top",
+                    style="pill"
+                )
+            ctx["_filtered_canvases"] = tuple(filtered_canvases)
+        return "reveal"
+
+    # ── Stage 3: After 3 more seconds, wait for button or auto-exit ──
+    if ctx["reveal_stage"] == "filtered":
+        # Show prompt after 1.5s
+        if not ctx.get("prompt_shown") and now - ctx["reveal_start"] >= 1.5:
+            ctx["prompt_shown"] = True
+            filtered_list = list(ctx["_filtered_canvases"])
+            for i in range(len(filtered_list)):
+                filtered_list[i] = print_text(
+                    filtered_list[i],
+                    "Drücke einen Knopf oder warte 5s",
+                    font_scale=0.7,
+                    position="bottom",
+                    style="pill"
+                )
+            ctx["_filtered_canvases"] = tuple(filtered_list)
+            return "reveal"
+
+        # Auto-exit after 5 seconds total in filtered stage
+        if now - ctx["reveal_start"] >= 5.0:
+            return "exit_reveal"
+
+        # Or button press exits immediately
+        if just_pressed:
+            return "exit_reveal"
+
+        return "reveal"
+
+    return "reveal"
+
+
 logging.basicConfig(level=logging.INFO)
+
 
 class HandleFlow:
     """Main application controller."""
@@ -51,7 +166,6 @@ class HandleFlow:
 
         self.aligned_since: float | None = None
         self.text = None
-
 
     # ------------------------------------------------------------------ #
     #  HELPERS
@@ -86,7 +200,7 @@ class HandleFlow:
         full_landmarks = self.face_enhancer.force_detect_full(frame)
         if full_landmarks is None:
             logging.error("No face detected in photo")
-            self.display.show_loading("Kein Gesicht erkannt!", progress=None)  # static error
+            self.display.show_loading("Kein Gesicht erkannt!", progress=None)
             time.sleep(2)
             return None
 
@@ -108,7 +222,7 @@ class HandleFlow:
 
         time.sleep(0.2)
         self.display.show_loading("Fertig", 1.0)
-        time.sleep(0.3)  # let user see completion
+        time.sleep(0.3)
 
         return result
 
@@ -178,7 +292,7 @@ class HandleFlow:
             return "live"
 
         grid = self._build_grid(used_keys)
-        ctx["cell_keys"] = self.display.cell_keys[:]  # snapshot order RIGHT NOW, before anything can reshuffle
+        ctx["cell_keys"] = self.display.cell_keys[:]
         self.text = "In welchem Bild erkennst du dich wieder?"
         ctx["grid_clean"] = tuple(c.copy() for c in grid)
         grid_list = list(grid)
@@ -186,6 +300,9 @@ class HandleFlow:
             grid_list[idx] = print_text(grid_list[idx], self.text, font_scale=0.7, position="top")
         self.display.update_frame(tuple(grid_list), flip=False)
         ctx["selected_button"] = None
+        ctx["reveal_stage"] = None  # Reset reveal state
+        ctx["_colored_canvases"] = None
+        ctx["_filtered_canvases"] = None
         return "grid_select"
 
     def handle_grid_confirm(self, just_pressed, ctx):
@@ -195,7 +312,6 @@ class HandleFlow:
         button = just_pressed[0]
         index = button_to_index.get(button)
 
-        # Select immediately - no need for second press
         selected = self.display.handle_button_press_with_keys(button, ctx["cell_keys"])
         is_correct = (selected == ORIGINAL_KEY)
 
@@ -210,7 +326,7 @@ class HandleFlow:
             text_index = index
         else:
             _apply_tint_and_border(index, (0, 0, 255))
-            original_index = ctx["cell_keys"].index(ORIGINAL_KEY)  # use snapshot, not live cell_keys
+            original_index = ctx["cell_keys"].index(ORIGINAL_KEY)
             _apply_tint_and_border(original_index, (0, 255, 0))
             text_index = original_index
             self.text = "Das ist das echte Bild!"
@@ -223,45 +339,80 @@ class HandleFlow:
         ctx["confirm_time"] = time.time()
         return "confirm_wait"
 
-    def show_changed_grid(self, ctx, text, position):
-        canvas1 = ctx["grid_clean"][0].copy()
-        canvas2 = ctx["grid_clean"][1].copy()
-
-        for idx, key in enumerate(self.display.cell_keys):
-            if key in DIFF_PATHS:
-                img = cv2.imread(DIFF_PATHS[key])
-                if img is not None:
-                    img = _fit_image(img, self.display.cell_width, self.display.cell_height)
-                    x1, y1, x2, y2 = self.display._cell_rect(idx)
-                    if idx < 2:
-                        canvas1[y1:y2, x1:x2] = img
-                    else:
-                        canvas2[y1:y2, x1:x2] = img
-
-        canvas1 = print_text(canvas1, text, font_scale=1, position=position, style="pill")
-        return canvas1, canvas2
-
     def handle_reveal(self, just_pressed, ctx):
+        """
+        NEW: Handles the reveal flow with:
+        1. Colored overlay (3s)
+        2. Filtered images (3s + button/auto exit)
+        """
         now = time.time()
 
-        if ctx.get("reveal_start") is None:
+        # ── Stage 1: Show colored diff overlay ──────────────────────────
+        if ctx.get("reveal_stage") is None:
+            ctx["reveal_stage"] = "colored"
             ctx["reveal_start"] = now
-            ctx["prompt_shown"] = False
-            canvas = show_changed_grid(ctx, "Hier ist was sich verändert hat.", "top")
-            self.display.update_frame(canvas, flip=False)
 
-        if not ctx["prompt_shown"] and now - ctx["reveal_start"] >= 10:
-            canvas = show_changed_grid(ctx, "Drücke einen Knopf, um fortzufahren.", "bottom", 1)
-            self.display.update_frame(canvas, flip=False)
-            ctx["prompt_shown"] = True
+            colored_canvases = show_colored_grid(ctx)
+            if colored_canvases:
+                colored_list = list(colored_canvases)
+                for i in range(len(colored_list)):
+                    colored_list[i] = print_text(
+                        colored_list[i],
+                        "🔍 Veränderungen hervorgehoben",
+                        font_scale=1.0,
+                        position="top",
+                        style="pill"
+                    )
+                ctx["_colored_canvases"] = tuple(colored_list)
+                self.display.update_frame(ctx["_colored_canvases"], flip=False)
+            return "reveal"
 
-        if just_pressed or (ctx["prompt_shown"] and now - ctx["reveal_start"] >= 30):
-            ctx["reveal_start"] = None
-            ctx["prompt_shown"] = False
-            self.aligned_since = None
-            self.display.reset_monitors = True
-            self.alignment_guide.reset()
-            return "live"
+        # ── Stage 2: After 3s, switch to filtered images ───────────────
+        if ctx["reveal_stage"] == "colored":
+            if now - ctx["reveal_start"] >= 3.0:  # Show colored for 3 seconds
+                ctx["reveal_stage"] = "filtered"
+                ctx["reveal_start"] = now
+
+                filtered_canvases = list(ctx["grid_clean"])
+                for i in range(len(filtered_canvases)):
+                    filtered_canvases[i] = print_text(
+                        filtered_canvases[i],
+                        "✨ Ergebnis",
+                        font_scale=1.0,
+                        position="top",
+                        style="pill"
+                    )
+                ctx["_filtered_canvases"] = tuple(filtered_canvases)
+                self.display.update_frame(ctx["_filtered_canvases"], flip=False)
+            return "reveal"
+
+        # ── Stage 3: After 3 more seconds, wait for button or auto-exit ──
+        if ctx["reveal_stage"] == "filtered":
+            # Show prompt after 1.5s
+            if not ctx.get("prompt_shown") and now - ctx["reveal_start"] >= 1.5:
+                ctx["prompt_shown"] = True
+                filtered_list = list(ctx["_filtered_canvases"])
+                for i in range(len(filtered_list)):
+                    filtered_list[i] = print_text(
+                        filtered_list[i],
+                        "Drücke einen Knopf oder warte 5s",
+                        font_scale=0.7,
+                        position="bottom",
+                        style="pill"
+                    )
+                ctx["_filtered_canvases"] = tuple(filtered_list)
+                self.display.update_frame(ctx["_filtered_canvases"], flip=False)
+                return "reveal"
+
+            # Auto-exit after 5 seconds total in filtered stage
+            if now - ctx["reveal_start"] >= 5.0:
+                return "exit_reveal"
+
+            # Or button press exits immediately
+            if just_pressed:
+                return "exit_reveal"
+
+            return "reveal"
 
         return "reveal"
 
