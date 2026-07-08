@@ -178,7 +178,7 @@ class HandleFlow:
             return "live"
 
         grid = self._build_grid(used_keys)
-        ctx["cell_keys"] = self.display.cell_keys[:]  # snapshot order RIGHT NOW, before anything can reshuffle
+        ctx["cell_keys"] = self.display.cell_keys[:]
         self.text = "In welchem Bild erkennst du dich wieder?"
         ctx["grid_clean"] = tuple(c.copy() for c in grid)
         grid_list = list(grid)
@@ -186,6 +186,10 @@ class HandleFlow:
             grid_list[idx] = print_text(grid_list[idx], self.text, font_scale=0.7, position="top")
         self.display.update_frame(tuple(grid_list), flip=False)
         ctx["selected_button"] = None
+        # ── Reset reveal state ──
+        ctx["reveal_stage"] = None
+        ctx["prompt_shown"] = False
+        ctx["reveal_start"] = None
         return "grid_select"
 
     def handle_grid_confirm(self, just_pressed, ctx):
@@ -244,24 +248,73 @@ class HandleFlow:
     def handle_reveal(self, just_pressed, ctx):
         now = time.time()
 
-        if ctx.get("reveal_start") is None:
+        # ── Stage 1: Show colored diff overlay ──────────────────────────
+        if ctx.get("reveal_stage") is None:
+            ctx["reveal_stage"] = "colored"
             ctx["reveal_start"] = now
-            ctx["prompt_shown"] = False
-            canvas = show_changed_grid(ctx, "Hier ist was sich verändert hat.", "top")
-            self.display.update_frame(canvas, flip=False)
 
-        if not ctx["prompt_shown"] and now - ctx["reveal_start"] >= 10:
-            canvas = show_changed_grid(ctx, "Drücke einen Knopf, um fortzufahren.", "bottom", 1)
-            self.display.update_frame(canvas, flip=False)
-            ctx["prompt_shown"] = True
+            # Show colored diff overlay
+            colored_canvases = show_changed_grid(ctx, "Hier ist was sich verändert hat.", "top")
+            self.display.update_frame(colored_canvases, flip=False)
+            return "reveal"
 
-        if just_pressed or (ctx["prompt_shown"] and now - ctx["reveal_start"] >= 30):
-            ctx["reveal_start"] = None
-            ctx["prompt_shown"] = False
-            self.aligned_since = None
-            self.display.reset_monitors = True
-            self.alignment_guide.reset()
-            return "live"
+        # ── Stage 2: After 3s, switch to filtered images ───────────────
+        if ctx["reveal_stage"] == "colored":
+            if now - ctx["reveal_start"] >= 3.0:  # Show colored for 3 seconds
+                ctx["reveal_stage"] = "filtered"
+                ctx["reveal_start"] = now
+
+                # Show filtered images (no overlay)
+                filtered_list = list(ctx["grid_clean"])
+                for i in range(len(filtered_list)):
+                    filtered_list[i] = print_text(
+                        filtered_list[i],
+                        "Hier ist das Ergebnis",
+                        font_scale=1.0,
+                        position="top",
+                        style="pill"
+                    )
+                self.display.update_frame(tuple(filtered_list), flip=False)
+            return "reveal"
+
+        # ── Stage 3: After 3 more seconds, wait for button or auto-exit ──
+        if ctx["reveal_stage"] == "filtered":
+            # Show prompt after 1.5s
+            if not ctx.get("prompt_shown") and now - ctx["reveal_start"] >= 1.5:
+                ctx["prompt_shown"] = True
+                filtered_list = list(ctx["grid_clean"])
+                for i in range(len(filtered_list)):
+                    filtered_list[i] = print_text(
+                        filtered_list[i],
+                        "Drücke einen Knopf, um fortzufahren.",
+                        font_scale=0.7,
+                        position="bottom",
+                        style="pill"
+                    )
+                self.display.update_frame(tuple(filtered_list), flip=False)
+                return "reveal"
+
+            # Auto-exit after 5 seconds total in filtered stage
+            if now - ctx["reveal_start"] >= 5.0:
+                ctx["reveal_stage"] = None
+                ctx["prompt_shown"] = False
+                ctx["reveal_start"] = None
+                self.aligned_since = None
+                self.display.reset_monitors = True
+                self.alignment_guide.reset()
+                return "live"
+
+            # Or button press exits immediately
+            if just_pressed:
+                ctx["reveal_stage"] = None
+                ctx["prompt_shown"] = False
+                ctx["reveal_start"] = None
+                self.aligned_since = None
+                self.display.reset_monitors = True
+                self.alignment_guide.reset()
+                return "live"
+
+            return "reveal"
 
         return "reveal"
 
