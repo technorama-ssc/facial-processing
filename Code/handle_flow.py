@@ -260,7 +260,7 @@ class HandleFlow:
 
         # ── Stage 2: After 3s, switch to filtered images ───────────────
         if ctx["reveal_stage"] == "colored":
-            if now - ctx["reveal_start"] >= 3.0:  # Show colored for 3 seconds
+            if now - ctx["reveal_start"] >= 5.0:  # Show colored for 3 seconds
                 ctx["reveal_stage"] = "filtered"
                 ctx["reveal_start"] = now
 
