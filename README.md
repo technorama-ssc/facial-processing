@@ -96,21 +96,13 @@ You can find everything that you need to set up this project in the [Tutorial](.
 
 ### Alignment
 
-```python
-YAW_THRESHOLD = 0.35  # How straight the face must be before capture triggers.
-# Lower → stricter | Higher → more lenient
-
-STABLE_FRAMES_REQUIRED = 8  # How many consecutive aligned frames before the photo is taken.
-# Lower → captures faster, more risk of catching a blink/micro-movement | Higher → more reliable but slower
-
-HAIR_THRESHOLD = 0.35  # Maximum fraction of the face oval that can be covered by hair.
-# Lower → blocks capture if even a little hair is in the oval | Higher → allows fringes/bangs through
-
-OVAL_RX_RATIO = 0.30  # Oval width as fraction of the frame's shorter axis
-OVAL_RY_RATIO = 0.30  # Oval height as fraction of the frame's shorter axis
-# Lower → smaller oval, face must be closer to camera | Higher → larger oval, more generous fit zone
-```
-
+| Setting                  | Default Value | Description                                                    | Tuning                                                                                                     |
+|--------------------------|---------------|----------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| `YAW_THRESHOLD`          | `0.35`        | How straight the face must be before capture triggers.         | Lower → stricter \| Higher → more lenient                                                                  |
+| `STABLE_FRAMES_REQUIRED` | `8`           | How many consecutive aligned frames before the photo is taken. | Lower → captures faster, more risk of catching a blink/micro-movement \| Higher → more reliable but slower |
+| `HAIR_THRESHOLD`         | `0.35`        | Maximum fraction of the face oval that can be covered by hair. | Lower → blocks capture if even a little hair is in the oval \| Higher → allows fringes/bangs through       |
+| `OVAL_RX_RATIO`          | `0.30`        | Oval width as fraction of the frame's shorter axis             | Lower → smaller oval, face must be closer to camera \| Higher → larger oval, more generous fit zone        |
+| `OVAL_RY_RATIO`          | `0.30`        | Oval height as fraction of the frame's shorter axis            | Lower → smaller oval, face must be closer to camera \| Higher → larger oval, more generous fit zone        |
 ---
 
 ## Web Admin UI
