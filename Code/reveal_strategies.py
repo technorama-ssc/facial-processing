@@ -72,14 +72,14 @@ def _make_slideshow_grid(ctx, show_original):
         key = cell_keys[i]
 
         if show_original:
-            c = print_text(c, "📸 Original", font_scale=0.6, position="top")
+            c = print_text(c, "Original", font_scale=0.6, position="top")
         else:
             if key in DIFF_PATHS:
                 diff_img = cv2.imread(DIFF_PATHS[key])
                 if diff_img is not None:
                     diff_img = _fit_image(diff_img, SCREEN_W, SCREEN_H)
                     c[:] = diff_img
-            c = print_text(c, "✨ Filtered", font_scale=0.6, position="top")
+            c = print_text(c, "Filtered", font_scale=0.6, position="top")
 
         result.append(c)
 
@@ -153,26 +153,22 @@ class SlideshowReveal(RevealStrategy):
     def update(self, ctx, just_pressed):
         now = time.time()
 
-        # Switch every 2 seconds
         if now - ctx.get("slideshow_last_switch", now) >= 2.0:
             ctx["slideshow_show_original"] = not ctx.get("slideshow_show_original", True)
             ctx["slideshow_last_switch"] = now
             grid = _make_slideshow_grid(ctx, ctx["slideshow_show_original"])
 
-            # Show prompt after 1.5s
             if not ctx.get("prompt_shown") and now - ctx.get("reveal_start", now) >= 1.5:
                 ctx["prompt_shown"] = True
                 grid = _add_exit_prompt(grid)
 
             return grid, False, False
 
-        # Show prompt after 1.5s (if not already shown)
         if not ctx.get("prompt_shown") and now - ctx.get("reveal_start", now) >= 1.5:
             ctx["prompt_shown"] = True
             grid = _make_slideshow_grid(ctx, ctx.get("slideshow_show_original", True))
             return _add_exit_prompt(grid), False, False
 
-        # Exit after 30s or button press
         if now - ctx.get("reveal_start", now) >= 30.0 or just_pressed:
             return None, True, True
 
@@ -195,12 +191,10 @@ class SubtleReveal(RevealStrategy):
     def update(self, ctx, just_pressed):
         now = time.time()
 
-        # Show prompt after 1.5s
         if not ctx.get("prompt_shown") and now - ctx.get("reveal_start", now) >= 1.5:
             ctx["prompt_shown"] = True
             return _add_exit_prompt(_make_subtle_grid(ctx)), False, False
 
-        # Exit after 5s or button press
         if now - ctx.get("reveal_start", now) >= 5.0 or just_pressed:
             return None, True, True
 
@@ -223,19 +217,16 @@ class SplitReveal(RevealStrategy):
     def update(self, ctx, just_pressed):
         now = time.time()
 
-        # Show prompt after 1.5s
         if not ctx.get("prompt_shown") and now - ctx.get("reveal_start", now) >= 1.5:
             ctx["prompt_shown"] = True
             return _add_exit_prompt(_make_split_grid(ctx)), False, False
 
-        # Exit after 5s or button press
         if now - ctx.get("reveal_start", now) >= 5.0 or just_pressed:
             return None, True, True
 
         return None, False, False
 
 
-# Registry of strategies
 REVEAL_STRATEGIES = {
     "standard": StandardReveal(),
     "slideshow": SlideshowReveal(),

@@ -136,16 +136,16 @@
             if (data.ok) {
                 currentVariant = variant;
                 renderVariants();
-                document.getElementById('status').textContent = `✅ Switched to "${VARIANT_INFO[variant]?.label || variant}"`;
+                document.getElementById('status').textContent = `Switched to "${VARIANT_INFO[variant]?.label || variant}"`;
                 setTimeout(() => {
                     document.getElementById('status').textContent = '';
                 }, 3000);
             } else {
-                document.getElementById('status').textContent = '❌ Error switching variant';
+                document.getElementById('status').textContent = 'Error switching variant';
             }
         } catch (e) {
             console.error('Failed to set variant:', e);
-            document.getElementById('status').textContent = '❌ Error switching variant';
+            document.getElementById('status').textContent = 'Error switching variant';
         }
     }
 

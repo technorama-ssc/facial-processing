@@ -251,27 +251,6 @@ FILTER_START = 0.3
 FILTER_END = 0.9
 COUNTDOWN = 1
 
-# Reveal variants
-REVEAL_VARIANTS = {
-    "standard": {
-        "name": "Standard",
-        "description": "Colored overlay 5s → filtered images"
-    },
-    "slideshow": {
-        "name": "Slideshow",
-        "description": "Alternates original/filtered every 2s"
-    },
-    "subtle": {
-        "name": "Subtle",
-        "description": "Colored overlay at 8% opacity"
-    },
-    "split": {
-        "name": "Split View",
-        "description": "Left: original, Right: filtered"
-    }
-}
-DEFAULT_REVEAL_VARIANT = "standard"
-
 
 # ====================================================================== #
 # TEXTS

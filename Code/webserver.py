@@ -556,7 +556,7 @@ def get_filter_meta():
             "hint": FILTER_META[name]["hint"],
             "intensity": _filter_intensities.get(name, default_pct),
             "enabled": name not in _disabled_filters,
-            "default_pct": default_pct,  # ← true linear default position
+            "default_pct": default_pct,
         })
 
     return jsonify({
