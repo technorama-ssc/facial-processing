@@ -89,13 +89,13 @@ def _make_slideshow_grid(ctx, show_original):
 def _make_subtle_grid(ctx):
     """Helper: create subtle overlay grid."""
     from handle_flow import show_changed_grid
-    return show_changed_grid(ctx, "Subtle changes", "top", font_scale=1, variant="subtle")
+    return show_changed_grid(ctx, "Subtle changes", "top", font_scale=1)
 
 
 def _make_split_grid(ctx):
     """Helper: create split view grid."""
     from handle_flow import show_changed_grid
-    return show_changed_grid(ctx, "Compare", "top", font_scale=1, variant="split")
+    return show_changed_grid(ctx, "Compare", "top", font_scale=1)
 
 
 class StandardReveal(RevealStrategy):
