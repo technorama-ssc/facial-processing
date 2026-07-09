@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import threading
-
+from reveal_strategies import set_strategy, get_strategy, get_strategies
 import cv2
 import numpy as np
 from flask import Flask, request, jsonify, render_template, send_file
@@ -563,3 +563,22 @@ def get_filter_meta():
         "filters": filters_out,
         "categories": CATEGORIES,
     })
+
+@app.route('/settings')
+def settings():
+    return render_template('settings.html')
+
+@app.route('/reveal-variant', methods=['GET'])
+def get_reveal_variant_route():
+    """Get the current reveal variant."""
+    return jsonify({
+        "current": get_strategy(),
+        "available": get_strategies()
+    })
+
+@app.route('/reveal-variant/<variant>', methods=['POST'])
+def set_reveal_variant_route(variant):
+    """Set the reveal variant."""
+    if set_strategy(variant):
+        return jsonify({"ok": True, "variant": variant})
+    return jsonify({"error": "Unknown variant"}), 400

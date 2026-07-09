@@ -10,6 +10,7 @@ from face_enhance import FaceEnhancer
 from alignment_guide import AlignmentGuide
 from helper_functions import _apply_filters, prepare_frame
 from wrinkles import CombinedWrinkleDrawer
+from reveal_strategies import get_current_strategy_instance
 
 def show_changed_grid(ctx, text, position, font_scale=1):
     canvases = list(ctx["grid_clean"])
@@ -246,74 +247,30 @@ class HandleFlow:
         return canvas1, canvas2
 
     def handle_reveal(self, just_pressed, ctx):
-        now = time.time()
+        """Handle reveal state using the selected strategy."""
 
-        # ── Stage 1: Show colored diff overlay ──────────────────────────
         if ctx.get("reveal_stage") is None:
-            ctx["reveal_stage"] = "colored"
-            ctx["reveal_start"] = now
-
-            # Show colored diff overlay
-            colored_canvases = show_changed_grid(ctx, "Hier ist was sich verändert hat.", "top")
-            self.display.update_frame(colored_canvases, flip=False)
+            ctx["reveal_stage"] = "showing"
+            strategy = get_current_strategy_instance()
+            grid = strategy.get_initial_grid(ctx)
+            if grid:
+                self.display.update_frame(grid, flip=False)
             return "reveal"
 
-        # ── Stage 2: After 3s, switch to filtered images ───────────────
-        if ctx["reveal_stage"] == "colored":
-            if now - ctx["reveal_start"] >= 5.0:  # Show colored for 3 seconds
-                ctx["reveal_stage"] = "filtered"
-                ctx["reveal_start"] = now
+        strategy = get_current_strategy_instance()
+        grid, should_exit, should_reset = strategy.update(ctx, just_pressed)
 
-                # Show filtered images (no overlay)
-                filtered_list = list(ctx["grid_clean"])
-                for i in range(len(filtered_list)):
-                    filtered_list[i] = print_text(
-                        filtered_list[i],
-                        "Hier ist das Ergebnis",
-                        font_scale=1.0,
-                        position="top",
-                        style="pill"
-                    )
-                self.display.update_frame(tuple(filtered_list), flip=False)
-            return "reveal"
+        if grid:
+            self.display.update_frame(grid, flip=False)
 
-        # ── Stage 3: After 3 more seconds, wait for button or auto-exit ──
-        if ctx["reveal_stage"] == "filtered":
-            # Show prompt after 1.5s
-            if not ctx.get("prompt_shown") and now - ctx["reveal_start"] >= 1.5:
-                ctx["prompt_shown"] = True
-                filtered_list = list(ctx["grid_clean"])
-                for i in range(len(filtered_list)):
-                    filtered_list[i] = print_text(
-                        filtered_list[i],
-                        "Drücke einen Knopf, um fortzufahren.",
-                        font_scale=0.7,
-                        position="bottom",
-                        style="pill"
-                    )
-                self.display.update_frame(tuple(filtered_list), flip=False)
-                return "reveal"
-
-            if now - ctx["reveal_start"] >= 30.0:
-                ctx["reveal_stage"] = None
-                ctx["prompt_shown"] = False
-                ctx["reveal_start"] = None
-                self.aligned_since = None
-                self.display.reset_monitors = True
-                self.alignment_guide.reset()
-                return "live"
-
-            # Or button press exits immediately
-            if just_pressed:
-                ctx["reveal_stage"] = None
-                ctx["prompt_shown"] = False
-                ctx["reveal_start"] = None
-                self.aligned_since = None
-                self.display.reset_monitors = True
-                self.alignment_guide.reset()
-                return "live"
-
-            return "reveal"
+        if should_exit:
+            ctx["reveal_stage"] = None
+            ctx["prompt_shown"] = False
+            ctx["reveal_start"] = None
+            self.aligned_since = None
+            self.display.reset_monitors = True
+            self.alignment_guide.reset()
+            return "live"
 
         return "reveal"
 
