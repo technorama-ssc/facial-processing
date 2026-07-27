@@ -265,6 +265,9 @@ def _load_settings():
             saved_path = data.get('preview_image_path')
             if saved_path and os.path.exists(saved_path):
                 _preview_image_path = saved_path
+            saved_strategy = data.get('reveal_strategy')
+            if saved_strategy:
+                set_strategy(saved_strategy)
         except Exception as e:
             logger.error("Could not load settings: %s", e)
     _apply_intensities()
@@ -277,6 +280,7 @@ def _save_settings():
                 'intensities': dict(_filter_intensities),
                 'disabled_filters': list(_disabled_filters),
                 'preview_image_path': _preview_image_path,
+                'reveal_strategy': get_strategy(),
             }, f, indent=2)
     except Exception as e:
         logger.error("Could not save settings: %s", e)
@@ -580,5 +584,6 @@ def get_reveal_variant_route():
 def set_reveal_variant_route(variant):
     """Set the reveal variant."""
     if set_strategy(variant):
+        _save_settings()
         return jsonify({"ok": True, "variant": variant})
     return jsonify({"error": "Unknown variant"}), 400

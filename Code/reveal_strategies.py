@@ -50,7 +50,7 @@ def _make_colored_grid(ctx, text="Here's what changed"):
         result.append(c)
 
     for i, item in enumerate(result):
-        result[i] = print_text(item, text, font_scale=1, position="top", style="pill")
+        result[i] = print_text(item, text, font_scale=1, position="top")
 
     return tuple(result)
 
@@ -65,15 +65,15 @@ def _make_filtered_grid(ctx):
         filtered_list[i] = print_text(
             filtered_list[i],
             "Here's the result",
-            font_scale=1.0,
+            font_scale=1,
             position="top",
             style="pill"
         )
     return tuple(filtered_list)
 
 
-def _make_split_grid(ctx):
-    """Show colored diff on left, filtered image on right."""
+def _make_dissolve_grid(ctx, alpha):
+    """Blend colored diff (alpha=0) into filtered result (alpha=1)."""
     if "grid_clean" not in ctx or ctx["grid_clean"] is None:
         return None
 
@@ -83,35 +83,25 @@ def _make_split_grid(ctx):
 
     for i, canvas in enumerate(canvases):
         key = cell_keys[i]
-        h, w = canvas.shape[:2]
-        half_w = w // 2
 
-        # Left half: Colored diff
-        left = canvas[:, :half_w].copy()
-        if key in DIFF_PATHS:
-            diff_img = cv2.imread(DIFF_PATHS[key])
-            if diff_img is not None:
-                diff_img = _fit_image(diff_img, half_w, h)
-                left = diff_img[:, :half_w].copy() if diff_img.shape[1] > half_w else diff_img
-
-        # Right half: Filtered result
-        right = canvas[:, half_w:].copy()
+        diff_img = cv2.imread(DIFF_PATHS.get(key, ""))
         filtered_img = cv2.imread(IMAGE_PATHS.get(key, ""))
+
+        if diff_img is not None:
+            diff_img = _fit_image(diff_img, SCREEN_W, SCREEN_H)
+        else:
+            diff_img = canvas.copy()
+
         if filtered_img is not None:
-            filtered_img = _fit_image(filtered_img, half_w, h)
-            right = filtered_img[:, half_w:].copy() if filtered_img.shape[1] > half_w else filtered_img
+            filtered_img = _fit_image(filtered_img, SCREEN_W, SCREEN_H)
+        else:
+            filtered_img = canvas.copy()
 
-        # Combine
-        combined = np.hstack([left, right])
-
-        # Add labels
-        combined = print_text(combined, "Colored Diff", font_scale=0.7, position="top")
-        combined = print_text(combined, "Filtered", font_scale=0.7, position="top")
-
-        result.append(combined)
+        blended = cv2.addWeighted(diff_img, 1 - alpha, filtered_img, alpha, 0)
+        result.append(blended)
 
     for i, item in enumerate(result):
-        result[i] = print_text(item, "Compare", font_scale=1, position="top", style="pill")
+        result[i] = print_text(item, "Here's what changed", font_scale=1, position="top")
 
     return tuple(result)
 
@@ -182,20 +172,20 @@ class StandardReveal(RevealStrategy):
             if now - ctx.get("reveal_start", now) >= 5.0:
                 ctx["reveal_stage"] = "filtered"
                 ctx["reveal_start"] = now
-                return _make_filtered_grid(ctx), False, False
-            return None, False, False
+                return _make_filtered_grid(ctx), False
+            return None, False
 
         if ctx.get("reveal_stage") == "filtered":
-            if not ctx.get("prompt_shown") and now - ctx.get("reveal_start", now) >= 1.5:
+            if not ctx.get("prompt_shown") and now - ctx.get("reveal_start", now) >= 0.5:
                 ctx["prompt_shown"] = True
-                return _add_exit_prompt(_make_filtered_grid(ctx)), False, False
+                return _add_exit_prompt(_make_filtered_grid(ctx)), False
 
             if now - ctx.get("reveal_start", now) >= 30.0 or just_pressed:
-                return None, True, True
+                return None, True
 
-            return None, False, False
+            return None, False
 
-        return None, False, False
+        return None, False
 
 
 class SlideshowReveal(RevealStrategy):
@@ -229,7 +219,7 @@ class SlideshowReveal(RevealStrategy):
                 ctx["prompt_shown"] = True
                 grid = _add_exit_prompt(grid)
 
-            return grid, False, False
+            return grid, False
 
         if not ctx.get("prompt_shown"):
             ctx["prompt_shown"] = True
@@ -237,12 +227,12 @@ class SlideshowReveal(RevealStrategy):
                 grid = _make_colored_grid(ctx)
             else:
                 grid = _make_filtered_grid(ctx)
-            return _add_exit_prompt(grid), False, False
+            return _add_exit_prompt(grid), False
 
         if now - ctx.get("reveal_start", now) >= 30.0 or just_pressed:
-            return None, True, True
+            return None, True
 
-        return None, False, False
+        return None, False
 
 
 class SubtleReveal(RevealStrategy):
@@ -263,44 +253,57 @@ class SubtleReveal(RevealStrategy):
 
         if not ctx.get("prompt_shown") and now - ctx.get("reveal_start", now) >= 1.5:
             ctx["prompt_shown"] = True
-            return _add_exit_prompt(_make_subtle_grid(ctx)), False, False
+            return _add_exit_prompt(_make_subtle_grid(ctx)), False
 
         if now - ctx.get("reveal_start", now) >= 30.0 or just_pressed:
-            return None, True, True
+            return None, True
 
-        return None, False, False
+        return None, False
 
 
-class SplitReveal(RevealStrategy):
-    """Colored and filtered side by side on same screen"""
+class DissolveReveal(RevealStrategy):
+    """Crossfades from colored diff to filtered result over 3s"""
+
+    DURATION = 3.0
 
     def get_name(self) -> str:
-        return "Split View"
+        return "Dissolve"
 
     def get_description(self) -> str:
-        return "Colored (left) + Filtered (right) side by side"
+        return "Smooth crossfade from colored diff to filtered result"
 
     def get_initial_grid(self, ctx):
         ctx["reveal_start"] = time.time()
-        return _make_split_grid(ctx)
+        ctx["dissolve_done"] = False
+        return _make_dissolve_grid(ctx, 0.0)
 
     def update(self, ctx, just_pressed):
         now = time.time()
+        elapsed = now - ctx.get("reveal_start", now)
 
-        if not ctx.get("prompt_shown") and now - ctx.get("reveal_start", now) >= 1.5:
+        if elapsed < self.DURATION:
+            alpha = elapsed / self.DURATION
+            return _make_dissolve_grid(ctx, alpha), False
+
+        if not ctx.get("dissolve_done"):
+            ctx["dissolve_done"] = True
+            ctx["hold_start"] = now
+            return _make_filtered_grid(ctx), False
+
+        if not ctx.get("prompt_shown") and now - ctx.get("hold_start", now) >= 1.5:
             ctx["prompt_shown"] = True
-            return _add_exit_prompt(_make_split_grid(ctx)), False, False
+            return _add_exit_prompt(_make_filtered_grid(ctx)), False
 
-        if now - ctx.get("reveal_start", now) >= 30.0 or just_pressed:
-            return None, True, True
+        if now - ctx.get("hold_start", now) >= 30.0 or just_pressed:
+            return None, True
 
-        return None, False, False
+        return None, False
 
 
 REVEAL_STRATEGIES = {
     "standard": StandardReveal(),
     "slideshow": SlideshowReveal(),
-    "split": SplitReveal(),
+    "dissolve": DissolveReveal(),
     "subtle": SubtleReveal(),
 }
 

@@ -12,23 +12,6 @@ from helper_functions import _apply_filters, prepare_frame
 from wrinkles import CombinedWrinkleDrawer
 from reveal_strategies import get_current_strategy_instance
 
-def show_changed_grid(ctx, text, position, font_scale=1):
-    canvases = list(ctx["grid_clean"])
-    cell_keys = ctx["cell_keys"]
-    result = []
-    for i, canvas in enumerate(canvases):
-        c = canvas.copy()
-        key = cell_keys[i]
-        if key in DIFF_PATHS:
-            img = cv2.imread(DIFF_PATHS[key])
-            if img is not None:
-                img = _fit_image(img, SCREEN_W, SCREEN_H)
-                c[:] = img
-        result.append(c)
-    for i, item in enumerate(result):
-        result[i] = print_text(item, text, font_scale=font_scale, position=position)
-    return tuple(result)
-
 
 def _handle_confirm_wait(just_pressed, ctx):
     if time.time() - ctx["confirm_time"] >= 1.0:
@@ -132,13 +115,10 @@ class HandleFlow:
 
         frame = cv2.flip(frame, 1)
 
-        # Use FAST detection (5 points, frame-skipped)
         landmarks = self.face_enhancer.detect_landmarks_fast(frame)
 
-        # Update alignment guide
         self.alignment_guide.update(landmarks, frame=frame)
 
-        # Draw overlay
         frame = self.alignment_guide.draw(frame, landmarks)
 
         aligned = self.alignment_guide.is_aligned()
@@ -258,7 +238,7 @@ class HandleFlow:
             return "reveal"
 
         strategy = get_current_strategy_instance()
-        grid, should_exit, should_reset = strategy.update(ctx, just_pressed)
+        grid, should_exit = strategy.update(ctx, just_pressed)
 
         if grid:
             self.display.update_frame(grid, flip=False)
