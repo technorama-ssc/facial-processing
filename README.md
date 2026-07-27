@@ -127,15 +127,16 @@ http://<raspberry-pi-ip>:5000
 
 ## Key Dependencies
 
-| Package                 | Purpose                                            |
-|-------------------------|----------------------------------------------------|
-| `mediapipe`             | Face mesh (468 landmarks), hair segmentation       |
-| `opencv-python`         | Camera capture, image processing, display          |
-| `numpy`                 | Array operations for all warp/mask math            |
-| `lgpio`                 | GPIO button reading                                |
-| `flask`                 | Web admin interface                                |
-| `scipy`                 | Gaussian derivatives for Hessian wrinkle detection |
-| `Pillow`                | Unicode text rendering (German umlauts)            |
-| `rpicam-vid` + `ffmpeg` | Camera → v4l2loopback pipeline                     |
+| Package                                                                                                                                        | Purpose                                                                                                                                                                                           |
+|------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `mediapipe`                                                                                                                                    | Face mesh (468 landmarks), hair segmentation                                                                                                                                                      |
+| `opencv-python`                                                                                                                                | Camera capture, image processing, display                                                                                                                                                         |
+| `numpy`                                                                                                                                        | Array operations for all warp/mask math                                                                                                                                                           |
+| `lgpio`                                                                                                                                        | GPIO button reading                                                                                                                                                                               |
+| `flask`                                                                                                                                        | Web admin interface                                                                                                                                                                               |
+| `scipy`                                                                                                                                        | Gaussian derivatives for Hessian wrinkle detection                                                                                                                                                |
+| `Pillow`                                                                                                                                       | Unicode text rendering (German umlauts)                                                                                                                                                           |
+| `rpicam-vid` + `ffmpeg`                                                                                                                        | Camera → v4l2loopback pipeline                                                                                                                                                                    |
+| [`hair_segmenter.tflite`](https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/latest/hair_segmenter.tflite) | Hair segmentation model from Google's [MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/vision/image_segmenter) project, downloaded automatically at first run (see `hair_detection.py`) |
 
 ---

@@ -7,6 +7,8 @@ import mediapipe as mp
 
 # ── Model ──────────────────────────────────────────────────────────────────────
 _MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hair_segmenter.tflite")
+# Hair segmentation model © Google, distributed via MediaPipe under its own license.
+# See: https://ai.google.dev/edge/mediapipe/solutions/vision/image_segmenter
 _MODEL_URL = "https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/latest/hair_segmenter.tflite"
 
 HAIR_CATEGORY: int = 1
