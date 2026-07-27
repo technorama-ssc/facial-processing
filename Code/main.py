@@ -1,3 +1,10 @@
+import random
+import numpy as np
+
+RANDOM_SEED = 42
+random.seed(RANDOM_SEED)
+np.random.seed(RANDOM_SEED)
+
 import logging
 import threading
 import time
@@ -10,9 +17,7 @@ from alignment_guide import AlignmentGuide
 from handle_flow import HandleFlow, _handle_confirm_wait
 from webserver import start_webserver
 from wrinkles import CombinedWrinkleDrawer
-
 logging.basicConfig(level=logging.WARNING)
-
 
 class FacialProcessingApp:
     """Main application controller."""
