@@ -5,6 +5,20 @@ Visitors stand in front of a camera, align their face, and the system secretly a
 The photo is then shown alongside three "impostor" images on four screens and visitors have to guess which one is the real unedited them.
 
 
+## Table of Contents
+
+- [How It Works](#how-it-works)
+- [Hardware](#hardware)
+- [Project Structure](#project-structure)
+- [Setup](#setup)
+- [The 12 Filters](#the-12-filters)
+- [The 4 Reveal Strategies](#the-4-reveal-strategies)
+- [What You Can Tune](#what-you-can-tune)
+  - [Alignment](#alignment)
+- [Web Admin UI](#web-admin-ui)
+- [Key Dependencies](#key-dependencies)
+
+
 ---
 
 ## How It Works
@@ -92,6 +106,17 @@ You can find everything that you need to set up this project in the [Tutorial](.
 
 ---
 
+## The 4 reveal strategies
+
+| Filter      | What it does                                                                                           |
+|-------------|--------------------------------------------------------------------------------------------------------|
+| `standard`  | Colored diff overlay for 5s, then switches to the filtered result for up to 30s                        |
+| `slideshow` | 	Alternates between colored diff and filtered result every 2.5s, for up to 30s total                   |
+| `dissolve`  | 	Smooth crossfade from colored diff to filtered result over 3s, then holds on the result for up to 30s |
+| `subtle`    | 	Shows the filtered result with a faint (8%) colored diff overlay for up to 30s                        |
+
+---
+
 ## What You Can Tune
 
 ### Alignment
@@ -115,6 +140,7 @@ http://<raspberry-pi-ip>:5000
 
 - **`/`** — Toggle individual filters on/off (minimum 3 must stay active)
 - **`/tune`** — Per-filter intensity sliders with live preview (upload a test photo)
+- **`/settings`** — Reveal strategies 
 - Presets available: Standard / Subtle / Strong / Maximum
 - Settings auto-save to `Config/settings.json`
 
