@@ -6,8 +6,12 @@
 Make sure your device is connected to the same network as the Raspberry Pi. You can connect your device on the PowerShell with:
 
 ```
-ssh technorama@technorama.local
+ssh <username>@<hostname>.local
 ```
+
+You can find the correct values using following commands directly on your raspberry pi:
+- Username: ``whoami``
+- Hostname: ``hostname``
 
 * 2.) If you haven't done that yet, clone this repository to your Raspberry Pi. You can find the instructions for that in the [Git-Instructions File](./Git-Instructions.md)
 

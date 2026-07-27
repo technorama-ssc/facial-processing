@@ -96,8 +96,6 @@ You can find everything that you need to set up this project in the [Tutorial](.
 
 ### Alignment
 
-### Alignment
-
 | Setting                  | Default Value | Description                                                    | Tuning                                                                                                     |
 |--------------------------|---------------|----------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | `YAW_THRESHOLD`          | `0.35`        | How straight the face must be before capture triggers.         | Lower → stricter \| Higher → more lenient                                                                  |

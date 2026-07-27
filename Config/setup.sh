@@ -1,11 +1,6 @@
 #!/bin/bash
 
 # ============================================================================
-# Facial Processing Project — Setup Script
-# Project: /home/technorama/facial_processing/
-# Code:    /home/technorama/facial_processing/Code/
-# Env:     /home/technorama/main-env/  (Python 3.11)
-#
 # Architecture:
 #   - Debian Trixie (Python 3.13 system) with custom Python 3.11 venv
 #   - Uses v4l2loopback + libcamera to create /dev/video10 for OpenCV
