@@ -184,9 +184,9 @@ ensure_display() {
     done
 
     # Wayland / XWayland fallback (matches start.sh env block)
-    if [ -S "/run/user/1000/wayland-0" ]; then
+    if [ -S "/run/user/$(id -u "$CURRENT_USER")/wayland-0" ]; then
         export WAYLAND_DISPLAY=wayland-0
-        export XDG_RUNTIME_DIR=/run/user/1000
+        export XDG_RUNTIME_DIR="/run/user/$(id -u "$CURRENT_USER")"
         export GDK_BACKEND=x11
         export QT_QPA_PLATFORM=xcb
         export SDL_VIDEODRIVER=x11
@@ -199,7 +199,7 @@ ensure_display() {
 }
 
 check_display_health() {
-    if [ ! -S "/run/user/1000/wayland-0" ]; then
+    if [ ! -S "/run/user/$(id -u "$CURRENT_USER")/wayland-0" ]; then
         log_err "Wayland socket missing! Display server may be dead."
         return 1
     fi
@@ -340,6 +340,7 @@ declare -A PKG_MAP=(
     [PIL]="Pillow"
     # System info (optional but checked in wrinkles / alignment)
     [scipy]="scipy"
+    [google.protobuf]="protobuf"
 )
 
 reinstall_pkg() {
@@ -348,7 +349,15 @@ reinstall_pkg() {
     ensure_pip_healthy
     log_warn "Reinstalling $pip_spec into main-env..."
     if ! "$MAIN_ENV/bin/pip" install --quiet "$pip_spec" >> "$LOG_DIR/pip_install.log" 2>&1; then
-      log_err "Failed to reinstall $pip_spec — see $LOG_DIR/pip_install.log"
+        log_err "Failed to reinstall $pip_spec — see $LOG_DIR/pip_install.log"
+        return 1
+    fi
+
+    if [ "$import_name" = "mediapipe" ]; then
+        log_warn "Re‑pinning numpy>=2.0 after mediapipe install..."
+        if ! "$MAIN_ENV/bin/pip" install "numpy>=2.0" --force-reinstall >> "$LOG_DIR/pip_install.log" 2>&1; then
+            log_err "Failed to reinstall numpy>=2.0 — see $LOG_DIR/pip_install.log"
+        fi
     fi
 }
 
@@ -421,7 +430,7 @@ start_main_app() {
     # ── Wait for Wayland socket (mirrors start.sh exactly) ────────────────
     local WAYLAND_TIMEOUT=60
     local elapsed=0
-    until [ -S "/run/user/1000/wayland-0" ]; do
+    until [ -S "/run/user/$(id -u "$CURRENT_USER")/wayland-0" ]; do
         sleep 1
         elapsed=$(( elapsed + 1 ))
         if (( elapsed >= WAYLAND_TIMEOUT )); then
@@ -446,7 +455,7 @@ start_main_app() {
     # ── Set full display environment (mirrors start.sh env block) ─────────
     export DISPLAY=:0
     export WAYLAND_DISPLAY=wayland-0
-    export XDG_RUNTIME_DIR=/run/user/1000
+    export XDG_RUNTIME_DIR="/run/user/$(id -u "$CURRENT_USER")"
     export GDK_BACKEND=x11
     export QT_QPA_PLATFORM=xcb
     export SDL_VIDEODRIVER=x11
@@ -468,7 +477,7 @@ start_main_app() {
     sudo \
     DISPLAY=:0 \
     WAYLAND_DISPLAY=wayland-0 \
-    XDG_RUNTIME_DIR=/run/user/1000 \
+    XDG_RUNTIME_DIR="/run/user/$(id -u "$CURRENT_USER")" \
     GDK_BACKEND=x11 \
     QT_QPA_PLATFORM=xcb \
     SDL_VIDEODRIVER=x11 \
