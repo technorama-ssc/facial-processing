@@ -39,10 +39,6 @@ if ! flock -n 200; then
 fi
 
 # ─────────────────────────────────────────────
-# CONFIGURATION — mirrors setup.sh paths exactly
-
-
-# ─────────────────────────────────────────────
 CURRENT_USER=$USER
 HOME_DIR="/home/$CURRENT_USER"
 PROJECT_DIR="$HOME_DIR/facial_processing"
