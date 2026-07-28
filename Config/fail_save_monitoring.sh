@@ -648,7 +648,6 @@ cleanup() {
     # Restore default signal handling immediately so further Ctrl+C doesn't re-trigger
     trap - SIGINT SIGTERM EXIT
 
-    echo "Failsafe monitor shutting down — stopping child processes..."
 
     # Kill main.py gracefully first, then hard
     if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
@@ -662,7 +661,6 @@ cleanup() {
     pkill -f "rpicam-vid" 2>/dev/null || true
     pkill -f "ffmpeg.*video10" 2>/dev/null || true
 
-    echo "Shutdown complete."
     exit 0
 }
 trap cleanup SIGINT SIGTERM EXIT
