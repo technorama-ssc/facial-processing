@@ -3,32 +3,40 @@
 # failsafe_monitor.sh — Failsafe & Health Monitor for Facial Processing System
 # =============================================================================
 # Monitors:
-#   - main.py              (venv Python / OpenCV + Flask + GPIO)
-#   - Flask webserver      port 5000
-#   - rpicam-vid + ffmpeg  (camera pipeline → /dev/video10)
-#   - /dev/video10         (v4l2loopback virtual camera device)
-#   - GPIO chip            /dev/gpiochip4  (as per config.py GPIO_CHIP=4)
-#   - Required Python packages in main-env
-#   - Kernel module        v4l2loopback
-#   - Disk space           (warn + auto-clean at <500 MB free)
-#   - Memory               (warn at >90% used)
-#   - CPU temperature      (warn at >80°C)
+#   - main.py process     (venv Python / OpenCV + Flask + GPIO)
+#   - Flask webserver     (liveness on port 5000)
+#   - /dev/video10        (v4l2loopback virtual camera device)
+#   - /dev/gpiochip4      (GPIO chip, matches config.py)
+#   - v4l2loopback        (kernel module)
+#   - Disk space          (warn at <500 MB, auto-clean at <200 MB)
+#   - Memory usage        (drop caches at >90%)
+#   - Wayland / XWayland  (display server health)
+#   - Multi-monitor       (re-enable inactive displays with xrandr)
 #
 # Auto-fixes:
-#   - Restarts dead/hung main.py
-#   - Restarts dead/hung camera pipeline (rpicam-vid | ffmpeg)
-#   - Kills processes holding Flask port before restarting
+#   - Restarts dead/hung main.py (which restores the camera pipeline)
+#   - Kills processes holding Flask port before restart
 #   - Reloads missing v4l2loopback kernel module
 #   - Reinstalls missing Python packages into main-env
-#   - Cleans old logs/backups when disk is low
-#   - Recreates missing log directory
-#   - Repairs broken pip via ensurepip
-#   - Sets fallback DISPLAY / Wayland env vars if not available
+#   - Cleans old logs/backups and trims large log files
+#   - Sets fallback DISPLAY / Wayland env vars if missing
 #   - Removes stale PID files
-#   - Reboots if crash count exceeds MAX_CRASHES in CRASH_WINDOW seconds
+#   - Reboots the system if crash count exceeds MAX_CRASHES in CRASH_WINDOW
 # =============================================================================
 
 set -uo pipefail
+
+# ─────────────────────────────────────────────
+# SINGLE-INSTANCE LOCK
+# Prevents two copies of this watchdog fighting over
+# the same processes/pidfiles/port if it's ever started twice
+# ─────────────────────────────────────────────
+LOCK_FILE="/tmp/failsafe_monitor.lock"
+exec 200>"$LOCK_FILE"
+if ! flock -n 200; then
+    echo "Another instance of failsafe_monitor.sh is already running (lock: $LOCK_FILE) — exiting."
+    exit 1
+fi
 
 # ─────────────────────────────────────────────
 # CONFIGURATION — mirrors setup.sh paths exactly
@@ -42,22 +50,20 @@ CODE_DIR="$PROJECT_DIR/Code"
 MAIN_ENV="$HOME_DIR/main-env"
 
 MAIN_APP="$CODE_DIR/main.py"
-START_SH="$PROJECT_DIR/start.sh"
 
 LOG_DIR="$HOME_DIR/logs"
 LOG_FILE="$LOG_DIR/failsafe.log"
 
-CHECK_INTERVAL=30       # seconds between health checks
-MAX_CRASHES=5           # max crashes before forced reboot
-CRASH_WINDOW=300        # sliding window in seconds
+CHECK_INTERVAL=30
+MAX_CRASHES=5
+CRASH_WINDOW=300
 
-FLASK_PORT=5000         # webserver.py port (start_webserver default)
-VIDEO_DEVICE="/dev/video10"  # v4l2loopback device used in hardware.py
+FLASK_PORT=5000
+VIDEO_DEVICE="/dev/video10"
 
 DISK_WARN_MB=500
 DISK_CLEAN_MB=200
 MEM_WARN_PCT=90
-CPU_TEMP_WARN=80
 
 # PIDs of processes WE started
 APP_PID=""
@@ -99,14 +105,18 @@ log() {
         cp "$LOG_FILE" "$backup"
         tail -1000 "$LOG_FILE" > "${LOG_FILE}.tmp" && mv "${LOG_FILE}.tmp" "$LOG_FILE"
         echo "$(date '+%Y-%m-%d %H:%M:%S') [WARN] Log rotated → $backup" >> "$LOG_FILE"
+
+        local old_backups
+        old_backups=$(ls -1t "${LOG_DIR}"/*.bak 2>/dev/null | tail -n +11)
+        if [ -n "$old_backups" ]; then
+            echo "$old_backups" | xargs rm -f
+            echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] Pruned old log backups (keeping 10 most recent)" >> "$LOG_FILE"
+        fi
     fi
 }
 
-# Only WARN and ERROR are printed to terminal and saved to log
-log_ok()   { :; }                               # silenced
 log_warn() { log "${YELLOW}WARN ${NC}" "$@"; }
 log_err()  { log "${RED}ERROR${NC}" "$@"; }
-log_info() { :; }                               # silenced
 
 # ─────────────────────────────────────────────
 # CRASH WINDOW HELPER
@@ -141,7 +151,6 @@ free_port() {
             log_warn "Port $port held by another process — killing via fuser..."
             sudo fuser -k "${port}/tcp" 2>/dev/null || true
             sleep 1
-            log_ok "Port $port cleared"
             return
         fi
     fi
@@ -153,7 +162,6 @@ free_port() {
         log_warn "Port $port held by PID $pid — killing..."
         sudo kill -9 "$pid" 2>/dev/null || true
         sleep 1
-        log_ok "Port $port cleared (killed PID $pid)"
     fi
 }
 
@@ -164,7 +172,6 @@ port_listening() {
 
 # ─────────────────────────────────────────────
 # DISPLAY / WAYLAND HELPER
-# mirrors what start.sh does at launch
 # ─────────────────────────────────────────────
 ensure_display() {
     if [ -n "${DISPLAY:-}" ] && xdpyinfo -display "$DISPLAY" &>/dev/null 2>&1; then
@@ -176,7 +183,6 @@ ensure_display() {
     for disp in :0 :1 :2; do
         if xdpyinfo -display "$disp" &>/dev/null 2>&1; then
             export DISPLAY="$disp"
-            log_ok "Using fallback DISPLAY=$DISPLAY"
             return
         fi
     done
@@ -194,6 +200,69 @@ ensure_display() {
     fi
 
     log_err "No display found — OpenCV windows will not work"
+}
+
+check_display_health() {
+    if [ ! -S "/run/user/1000/wayland-0" ]; then
+        log_err "Wayland socket missing! Display server may be dead."
+        return 1
+    fi
+
+    if ! timeout 3 xdpyinfo -display :0 >/dev/null 2>&1; then
+        log_err "XWayland (:0) not responding!"
+        return 1
+    fi
+
+    return 0
+}
+
+# ─────────────────────────────────────────────
+# MULTI-MONITOR CHECK (xrandr via XWayland)
+# ─────────────────────────────────────────────
+EXPECTED_MONITORS=4
+
+check_monitors() {
+    command -v xrandr &>/dev/null || { log_warn "xrandr not found — skipping monitor check"; return; }
+    export DISPLAY="${DISPLAY:-:0}"
+
+    local xrandr_out
+    xrandr_out=$(xrandr --query 2>/dev/null)
+    if [ -z "$xrandr_out" ]; then
+        log_err "xrandr query failed — X/XWayland may be down, cannot check monitors"
+        return
+    fi
+
+    local connected_outputs=()
+    while IFS= read -r line; do
+        connected_outputs+=("$line")
+    done < <(echo "$xrandr_out" | awk '/ connected/{print $1}')
+
+    local connected_count=${#connected_outputs[@]}
+    local active_count
+    active_count=$(echo "$xrandr_out" | grep -c ' connected .*[0-9]\+x[0-9]\++[0-9]\++[0-9]\+')
+
+    if (( connected_count < EXPECTED_MONITORS )); then
+        log_err "Only ${connected_count}/${EXPECTED_MONITORS} display outputs detected by xrandr — check cables/EDID (this is a hardware-level issue, not something a restart fixes)"
+    fi
+
+    if (( active_count < EXPECTED_MONITORS )); then
+        log_warn "Only ${active_count}/${EXPECTED_MONITORS} monitors active — attempting to re-enable inactive outputs"
+
+        for out in "${connected_outputs[@]}"; do
+            if ! echo "$xrandr_out" | grep "^${out} connected" | grep -q '[0-9]\+x[0-9]\++[0-9]\++[0-9]\+'; then
+                log_warn "Enabling inactive output: $out"
+                xrandr --output "$out" --auto 2>>"$LOG_DIR/xrandr.log"
+            fi
+        done
+
+        sleep 2
+        xrandr_out=$(xrandr --query 2>/dev/null)
+        active_count=$(echo "$xrandr_out" | grep -c ' connected .*[0-9]\+x[0-9]\++[0-9]\++[0-9]\+')
+
+        if (( active_count < EXPECTED_MONITORS )); then
+          log_err "Still only ${active_count}/${EXPECTED_MONITORS} active after xrandr --auto — may need explicit --pos/--mode, or a physical check"
+        fi
+    fi
 }
 
 # ─────────────────────────────────────────────
@@ -220,16 +289,13 @@ ensure_module() {
     local extra_args="${2:-}"
 
     if lsmod | grep -q "^${module}"; then
-        log_ok "Kernel module $module loaded"
         return
     fi
 
     log_warn "Kernel module $module not loaded — loading..."
     if sudo modprobe "$module" $extra_args 2>/dev/null; then
         sleep 1
-        if lsmod | grep -q "^${module}"; then
-            log_ok "Kernel module $module loaded successfully"
-        else
+        if ! lsmod | grep -q "^${module}"; then
             log_err "modprobe $module returned 0 but module not visible in lsmod"
         fi
     else
@@ -238,7 +304,6 @@ ensure_module() {
 }
 
 check_kernel_modules() {
-    log_info "Checking kernel modules..."
     # Matches /etc/modprobe.d/v4l2loopback.conf from setup.sh
     ensure_module "v4l2loopback" "video_nr=10 card_label=PiCamera exclusive_caps=1"
 }
@@ -251,7 +316,6 @@ ensure_pip_healthy() {
         log_err "pip in main-env is broken — attempting repair via ensurepip..."
         if "$MAIN_ENV/bin/python" -m ensurepip --upgrade >> "$LOG_DIR/pip_install.log" 2>&1; then
             "$MAIN_ENV/bin/python" -m pip install --upgrade pip >> "$LOG_DIR/pip_install.log" 2>&1 || true
-            log_ok "pip repaired successfully"
         else
             log_err "ensurepip failed — main-env may need to be recreated with: python3.11 -m venv $MAIN_ENV"
         fi
@@ -287,15 +351,12 @@ reinstall_pkg() {
     local pip_spec="${PKG_MAP[$import_name]:-$import_name}"
     ensure_pip_healthy
     log_warn "Reinstalling $pip_spec into main-env..."
-    if "$MAIN_ENV/bin/pip" install --quiet "$pip_spec" >> "$LOG_DIR/pip_install.log" 2>&1; then
-        log_ok "Reinstalled $pip_spec"
-    else
-        log_err "Failed to reinstall $pip_spec — see $LOG_DIR/pip_install.log"
+    if ! "$MAIN_ENV/bin/pip" install --quiet "$pip_spec" >> "$LOG_DIR/pip_install.log" 2>&1; then
+      log_err "Failed to reinstall $pip_spec — see $LOG_DIR/pip_install.log"
     fi
 }
 
 check_packages() {
-    log_info "Checking critical Python packages in main-env..."
     ensure_pip_healthy
 
     local missing=()
@@ -307,7 +368,6 @@ check_packages() {
     done
 
     if [ ${#missing[@]} -eq 0 ]; then
-        log_ok "All critical packages present in main-env"
         return 0
     fi
 
@@ -324,10 +384,8 @@ check_packages() {
         fi
     done
 
-    if [ ${#still_missing[@]} -eq 0 ]; then
-        log_ok "All missing packages reinstalled successfully"
-    else
-        log_err "Could NOT reinstall: ${still_missing[*]} — manual intervention required"
+    if [ ${#still_missing[@]} -ne 0 ]; then
+      log_err "Could NOT reinstall: ${still_missing[*]} — manual intervention required"
     fi
 }
 
@@ -337,13 +395,9 @@ check_packages() {
 # /dev/video10 (hardware.py: v4l2loopback)
 # ─────────────────────────────────────────────
 check_devices() {
-    log_info "Checking hardware devices..."
-
     # GPIO chip — config.py uses GPIO_CHIP = 4
     if [ ! -e /dev/gpiochip4 ]; then
         log_err "GPIO: /dev/gpiochip4 not found (config.py GPIO_CHIP=4)"
-    else
-        log_ok "GPIO: /dev/gpiochip4 present"
     fi
 
     # v4l2loopback virtual camera device
@@ -351,61 +405,17 @@ check_devices() {
         log_warn "Camera: $VIDEO_DEVICE not found — attempting to reload v4l2loopback..."
         ensure_module "v4l2loopback" "video_nr=10 card_label=PiCamera exclusive_caps=1"
         sleep 2
-        if [ -e "$VIDEO_DEVICE" ]; then
-            log_ok "Camera: $VIDEO_DEVICE now available after module reload"
-        else
+        if [ ! -e "$VIDEO_DEVICE" ]; then
             log_err "Camera: $VIDEO_DEVICE still missing — rpicam-vid pipeline cannot start"
         fi
-    else
-        log_ok "Camera: $VIDEO_DEVICE present"
-    fi
-}
-
-# ─────────────────────────────────────────────
-# CAMERA PIPELINE CHECK
-# hardware.py launches: rpicam-vid | ffmpeg → /dev/video10
-# hardware.py also has an internal watchdog, but we guard the outer process too
-# ─────────────────────────────────────────────
-check_camera_pipeline() {
-    local rpicam_alive=false ffmpeg_alive=false
-
-    pgrep -f "rpicam-vid" &>/dev/null && rpicam_alive=true
-    pgrep -f "ffmpeg.*video10" &>/dev/null && ffmpeg_alive=true
-
-    if $rpicam_alive && $ffmpeg_alive; then
-        log_ok "Camera pipeline: rpicam-vid + ffmpeg running"
-        return
-    fi
-
-    if ! $rpicam_alive; then
-        log_warn "Camera pipeline: rpicam-vid not running"
-    fi
-    if ! $ffmpeg_alive; then
-        log_warn "Camera pipeline: ffmpeg → video10 not running"
-    fi
-
-    # The pipeline is started by HardwareManager inside main.py.
-    # If the pipeline is dead but main.py is alive, hardware.py's internal
-    # watchdog should restart it within ~10 s.  We log and wait.
-    # If main.py is also dead, watch_main_app() will restart everything.
-    local app_alive=false
-    { [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; } && app_alive=true
-    pgrep -f "facial_processing/Code/main.py" &>/dev/null && app_alive=true
-
-    if $app_alive; then
-        log_warn "Camera pipeline down but main.py is alive — HardwareManager watchdog should recover it"
-    else
-        log_err "Camera pipeline AND main.py are both down — main.py restart will rebuild the pipeline"
     fi
 }
 
 # ─────────────────────────────────────────────
 # PROCESS STARTER
-# Mirrors start.sh exactly — including the Wayland/XWayland wait loops
 # ─────────────────────────────────────────────
 start_main_app() {
     # Clear Python cache so latest code is always used
-    log_info "Clearing Python __pycache__..."
     find "$PROJECT_DIR" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
     find "$PROJECT_DIR" -name "*.pyc" -delete 2>/dev/null || true
 
@@ -415,7 +425,6 @@ start_main_app() {
     # ── Wait for Wayland socket (mirrors start.sh exactly) ────────────────
     local WAYLAND_TIMEOUT=60
     local elapsed=0
-    log_info "Waiting for Wayland display socket..."
     until [ -S "/run/user/1000/wayland-0" ]; do
         sleep 1
         elapsed=$(( elapsed + 1 ))
@@ -424,11 +433,9 @@ start_main_app() {
             return 1
         fi
     done
-    log_ok "Wayland ready after ${elapsed}s"
 
     # ── Wait for XWayland / DISPLAY :0 (mirrors start.sh exactly) ────────
     elapsed=0
-    log_info "Waiting for XWayland (:0)..."
     until xdpyinfo -display :0 >/dev/null 2>&1; do
         sleep 1
         elapsed=$(( elapsed + 1 ))
@@ -438,8 +445,6 @@ start_main_app() {
     done
     if (( elapsed >= 30 )); then
         log_warn "XWayland did not confirm after 30s — continuing anyway (display may still work)"
-    else
-        log_ok "XWayland ready after ${elapsed}s"
     fi
 
     # ── Set full display environment (mirrors start.sh env block) ─────────
@@ -463,8 +468,6 @@ start_main_app() {
     sudo pkill -f "ffmpeg.*video10" 2>/dev/null || true
     sleep 1
 
-    log_info "Starting main.py (main-env Python 3.11)..."
-
     # main.py requires sudo for GPIO (lgpio gpiochip_open) + camera
     sudo \
     DISPLAY=:0 \
@@ -480,9 +483,7 @@ start_main_app() {
 
     sleep 4   # give Flask + HardwareManager time to initialise
 
-    if kill -0 "$APP_PID" 2>/dev/null; then
-        log_ok "main.py started (PID $APP_PID)"
-    else
+    if ! kill -0 "$APP_PID" 2>/dev/null; then
         log_err "main.py failed immediately — check $LOG_DIR/main_app.log"
         APP_PID=""
     fi
@@ -506,7 +507,6 @@ check_flask_port() {
     fi
 
     if $responding; then
-        log_ok "Flask port $FLASK_PORT responding"
         FLASK_FAIL_STRIKES=0
         return
     fi
@@ -556,7 +556,6 @@ watch_main_app() {
     fi
 
     if $alive; then
-        log_ok "main.py is running (PID ${APP_PID:-unknown})"
         return
     fi
 
@@ -587,14 +586,12 @@ clean_old_logs() {
         local size; size=$(du -k "$f" | cut -f1)
         rm -f "$f"
         freed=$(( freed + size ))
-        log_info "Deleted log backup: $f (${size} KB)"
     done
 
     if [ -d "$HOME_DIR/.cache/pip" ]; then
         local cache_size; cache_size=$(du -sk "$HOME_DIR/.cache/pip" | cut -f1)
         rm -rf "$HOME_DIR/.cache/pip"
         freed=$(( freed + cache_size ))
-        log_info "Cleared pip cache (${cache_size} KB)"
     fi
 
     # Trim large individual log files (keep last 1000 lines)
@@ -603,11 +600,9 @@ clean_old_logs() {
         local size_kb; size_kb=$(du -k "$f" | cut -f1)
         if (( size_kb > 51200 )); then   # > 50 MB
             tail -1000 "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
-            log_info "Trimmed large log: $f (was ${size_kb} KB)"
         fi
     done
 
-    log_ok "Disk cleanup complete — freed ~$(( freed / 1024 )) MB"
 }
 
 check_disk() {
@@ -619,8 +614,6 @@ check_disk() {
         clean_old_logs
     elif (( free_mb < DISK_WARN_MB )); then
         log_warn "Disk: only ${free_mb} MB free (threshold: ${DISK_WARN_MB} MB)"
-    else
-        log_ok "Disk: ${free_mb} MB free"
     fi
 }
 
@@ -635,23 +628,6 @@ check_memory() {
         echo 1 | sudo tee /proc/sys/vm/drop_caches > /dev/null 2>&1 || true
         read -r total used _ < <(free -m | awk '/^Mem:/ {print $2, $3, $4}')
         pct=$(( used * 100 / total ))
-        log_info "Memory after cache drop: ${pct}% (${used}/${total} MB)"
-    else
-        log_ok "Memory: ${pct}% used (${used}/${total} MB)"
-    fi
-}
-
-check_cpu_temp() {
-    if [ -f /sys/class/thermal/thermal_zone0/temp ]; then
-        local temp_raw; temp_raw=$(cat /sys/class/thermal/thermal_zone0/temp)
-        local temp_c=$(( temp_raw / 1000 ))
-        if (( temp_c > CPU_TEMP_WARN )); then
-            log_warn "CPU temperature: ${temp_c}°C — above ${CPU_TEMP_WARN}°C threshold"
-        else
-            log_ok "CPU temperature: ${temp_c}°C"
-        fi
-    else
-        log_warn "CPU temperature: sensor not found at /sys/class/thermal/thermal_zone0/temp"
     fi
 }
 
@@ -689,13 +665,6 @@ trap cleanup SIGINT SIGTERM EXIT
 # ─────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────
-log_info "========================================="
-log_info " Facial Processing — Failsafe Monitor"
-log_info " Project : $PROJECT_DIR"
-log_info " Code    : $CODE_DIR"
-log_info " Env     : $MAIN_ENV"
-log_info " Log     : $LOG_FILE"
-log_info "========================================="
 
 # ── One-time startup checks ───────────────────
 ensure_log_dir
@@ -704,6 +673,7 @@ check_kernel_modules
 check_packages
 check_devices
 ensure_display
+check_monitors
 
 # Kill any stale processes from a previous run
 sudo pkill -f "facial_processing/Code/main.py" 2>/dev/null || true
@@ -718,18 +688,12 @@ sleep 1
 # ── Start the application ─────────────────────
 start_main_app
 
-log_info "Starting health-check loop (every ${CHECK_INTERVAL}s)..."
-
 LOOP=0
 while true; do
     LOOP=$(( LOOP + 1 ))
-    log_info "--- Health check #${LOOP} @ $(date '+%H:%M:%S') ---"
 
     # Process liveness (every loop)
     watch_main_app
-
-    # Camera pipeline (every loop — quick pgrep check)
-    check_camera_pipeline
 
     # Flask liveness (every 3 loops ≈ every 90 s)
     if (( LOOP % 3 == 0 )); then
@@ -740,18 +704,15 @@ while true; do
     if (( LOOP % 6 == 0 )); then
         check_disk
         check_memory
-        check_cpu_temp
+        check_monitors
+        check_display_health || { log_err "Display unhealthy — restarting main.py"; sudo pkill -f "facial_processing/Code/main.py" 2>/dev/null || true; }
     fi
 
-    # Kernel module + device re-check (every 30 loops ≈ every 15 min)
-    if (( LOOP % 30 == 0 )); then
-        check_kernel_modules
-        check_devices
-    fi
 
     # Package integrity re-check (every 120 loops ≈ every hour)
     if (( LOOP % 120 == 0 )); then
-        check_packages
+        check_kernel_modules
+        check_devices
     fi
 
     sleep "$CHECK_INTERVAL"
