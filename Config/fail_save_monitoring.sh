@@ -184,9 +184,9 @@ ensure_display() {
     done
 
     # Wayland / XWayland fallback (matches start.sh env block)
-    if [ -S "/run/user/1000/wayland-0" ]; then
+    if [ -S "/run/user/$(id -u "$CURRENT_USER")/wayland-0" ]; then
         export WAYLAND_DISPLAY=wayland-0
-        export XDG_RUNTIME_DIR=/run/user/1000
+        export XDG_RUNTIME_DIR="/run/user/$(id -u "$CURRENT_USER")"
         export GDK_BACKEND=x11
         export QT_QPA_PLATFORM=xcb
         export SDL_VIDEODRIVER=x11
@@ -198,14 +198,30 @@ ensure_display() {
     log_err "No display found — OpenCV windows will not work"
 }
 
+# ─────────────────────────────────────────────
+# DISPLAY HEALTH — with strike tolerance
+#
+# Uses the SAME env (XAUTHORITY etc.) that main.py itself runs under,
+# so this check tests the thing that actually matters instead of
+# whatever DISPLAY/XAUTHORITY the watchdog happened to inherit.
+#
+# A single failed probe is NOT fatal — the Pi can be too busy (camera
+# init / mediapipe) to answer xdpyinfo within the timeout even though
+# the compositor and monitors are completely fine. We only act after
+# DISPLAY_GRACE_CHECKS consecutive failures.
+# ─────────────────────────────────────────────
+DISPLAY_FAIL_STRIKES=0
+DISPLAY_GRACE_CHECKS=3   # require 3 consecutive failures (~9 min at current cadence) before killing
+
 check_display_health() {
     if [ ! -S "/run/user/$(id -u "$CURRENT_USER")/wayland-0" ]; then
         log_err "Wayland socket missing! Display server may be dead."
         return 1
     fi
 
-    if ! timeout 3 xdpyinfo -display :0 >/dev/null 2>&1; then
-        log_err "XWayland (:0) not responding!"
+    if ! DISPLAY=:0 XAUTHORITY="${XAUTHORITY:-$HOME_DIR/.Xauthority}" \
+         timeout 8 xdpyinfo -display :0 >/dev/null 2>&1; then
+        log_err "XWayland (:0) not responding! Load avg: $(cat /proc/loadavg 2>/dev/null || echo 'n/a')"
         return 1
     fi
 
@@ -708,7 +724,17 @@ while true; do
         check_disk
         check_memory
         check_monitors
-        check_display_health || { log_err "Display unhealthy — restarting main.py"; sudo pkill -f "facial_processing/Code/main.py" 2>/dev/null || true; }
+        if check_display_health; then
+            DISPLAY_FAIL_STRIKES=0
+        else
+            DISPLAY_FAIL_STRIKES=$(( DISPLAY_FAIL_STRIKES + 1 ))
+            log_warn "Display check failed — strike $DISPLAY_FAIL_STRIKES/$DISPLAY_GRACE_CHECKS"
+            if (( DISPLAY_FAIL_STRIKES >= DISPLAY_GRACE_CHECKS )); then
+                log_err "Display unhealthy for $DISPLAY_GRACE_CHECKS consecutive checks — restarting main.py"
+                sudo pkill -f "facial_processing/Code/main.py" 2>/dev/null || true
+                DISPLAY_FAIL_STRIKES=0
+            fi
+        fi
     fi
 
 
