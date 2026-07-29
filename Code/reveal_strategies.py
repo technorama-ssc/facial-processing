@@ -2,7 +2,7 @@ import cv2
 import time
 from abc import ABC, abstractmethod
 
-import config as cfg
+from config import REVEAL_DURATION
 from utils import print_text, _fit_image
 from config import DIFF_PATHS, SCREEN_W, SCREEN_H, IMAGE_PATHS
 
@@ -206,7 +206,6 @@ class SlideshowReveal(RevealStrategy):
 
     HOLD = 2.0
     TRANSITION = 1.5
-    TOTAL = 60.0
 
     def get_name(self) -> str:
         return "Slideshow"
@@ -244,7 +243,7 @@ class SlideshowReveal(RevealStrategy):
     def update(self, ctx, just_pressed):
         now = time.time()
 
-        if now - ctx.get("reveal_start", now) >= self.TOTAL or just_pressed:
+        if now - ctx.get("reveal_start", now) >= REVEAL_DURATION or just_pressed:
             return None, True
 
         phase = ctx.get("sd_phase", "hold_colored")
@@ -302,7 +301,7 @@ class StandardReveal(RevealStrategy):
             return None, False
 
         if ctx.get("reveal_stage") == "filtered":
-            if now - ctx.get("reveal_start", now) >= cfg.REVEAL_DURATION or just_pressed:
+            if now - ctx.get("reveal_start", now) >= REVEAL_DURATION or just_pressed:
                 return None, True
 
             grid = _make_filtered_grid(ctx)
@@ -334,7 +333,7 @@ class SubtleReveal(RevealStrategy):
     def update(self, ctx, just_pressed):
         now = time.time()
 
-        if now - ctx.get("reveal_start", now) >= cfg.REVEAL_DURATION or just_pressed:
+        if now - ctx.get("reveal_start", now) >= REVEAL_DURATION or just_pressed:
             return None, True
 
         grid = _make_subtle_grid(ctx)
@@ -379,7 +378,7 @@ class DissolveReveal(RevealStrategy):
             grid = _make_filtered_grid(ctx)
             return _prepare_reveal_grid(grid, ctx), False
 
-        if now - ctx.get("hold_start", now) >= cfg.REVEAL_DURATION or just_pressed:
+        if now - ctx.get("hold_start", now) >= REVEAL_DURATION or just_pressed:
             return None, True
 
         grid = _make_filtered_grid(ctx)
