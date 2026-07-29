@@ -8,6 +8,8 @@ from utils import print_text, _fit_image
 from config import DIFF_PATHS, SCREEN_W, SCREEN_H, IMAGE_PATHS
 
 
+TIMER = 60
+
 class RevealStrategy(ABC):
     """Base class for reveal strategies."""
 
@@ -133,15 +135,15 @@ def _add_exit_prompt(grid, text="Drücke einen Knopf um fortzufahren."):
     return tuple(grid)
 
 
-class SlideshowDissolveReveal(RevealStrategy):
+class SlideshowReveal(RevealStrategy):
     """Alternates colored/filtered every 2.5s, crossfading smoothly between them"""
 
     HOLD = 2.0
-    TRANSITION = 0.5
+    TRANSITION = 3
     TOTAL = 60.0
 
     def get_name(self) -> str:
-        return "Slideshow Dissolve"
+        return "Slideshow"
 
     def get_description(self) -> str:
         return "Alternates colored/filtered every 2.5s with a smooth crossfade"
@@ -228,57 +230,10 @@ class StandardReveal(RevealStrategy):
                 ctx["prompt_shown"] = True
                 return _add_exit_prompt(_make_filtered_grid(ctx)), False
 
-            if now - ctx.get("reveal_start", now) >= 30.0 or just_pressed:
+            if now - ctx.get("reveal_start", now) >= TIMER or just_pressed:
                 return None, True
 
             return None, False
-
-        return None, False
-
-
-class SlideshowReveal(RevealStrategy):
-    """Alternates colored/filtered every 2.5 seconds for 30 seconds total"""
-
-    def get_name(self) -> str:
-        return "Slideshow"
-
-    def get_description(self) -> str:
-        return "Alternates colored/filtered every 2.5s"
-
-    def get_initial_grid(self, ctx):
-        ctx["slideshow_show_colored"] = True
-        ctx["slideshow_last_switch"] = time.time()
-        ctx["reveal_start"] = time.time()
-        return _make_colored_grid(ctx)
-
-    def update(self, ctx, just_pressed):
-        now = time.time()
-
-        if now - ctx.get("slideshow_last_switch", now) >= 2.5:
-            ctx["slideshow_show_colored"] = not ctx.get("slideshow_show_colored", True)
-            ctx["slideshow_last_switch"] = now
-
-            if ctx["slideshow_show_colored"]:
-                grid = _make_colored_grid(ctx)
-            else:
-                grid = _make_filtered_grid(ctx)
-
-            if not ctx.get("prompt_shown"):
-                ctx["prompt_shown"] = True
-                grid = _add_exit_prompt(grid)
-
-            return grid, False
-
-        if not ctx.get("prompt_shown"):
-            ctx["prompt_shown"] = True
-            if ctx.get("slideshow_show_colored", True):
-                grid = _make_colored_grid(ctx)
-            else:
-                grid = _make_filtered_grid(ctx)
-            return _add_exit_prompt(grid), False
-
-        if now - ctx.get("reveal_start", now) >= 30.0 or just_pressed:
-            return None, True
 
         return None, False
 
@@ -303,7 +258,7 @@ class SubtleReveal(RevealStrategy):
             ctx["prompt_shown"] = True
             return _add_exit_prompt(_make_subtle_grid(ctx)), False
 
-        if now - ctx.get("reveal_start", now) >= 30.0 or just_pressed:
+        if now - ctx.get("reveal_start", now) >= TIMER or just_pressed:
             return None, True
 
         return None, False
@@ -342,7 +297,7 @@ class DissolveReveal(RevealStrategy):
             ctx["prompt_shown"] = True
             return _add_exit_prompt(_make_filtered_grid(ctx)), False
 
-        if now - ctx.get("hold_start", now) >= 30.0 or just_pressed:
+        if now - ctx.get("hold_start", now) >= TIMER or just_pressed:
             return None, True
 
         return None, False
@@ -352,7 +307,7 @@ REVEAL_STRATEGIES = {
     "standard": StandardReveal(),
     "dissolve": DissolveReveal(),
     "subtle": SubtleReveal(),
-    "slideshow": SlideshowDissolveReveal(),
+    "slideshow": SlideshowReveal(),
 }
 
 DEFAULT_STRATEGY = "standard"
