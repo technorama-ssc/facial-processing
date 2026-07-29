@@ -139,7 +139,7 @@ class SlideshowReveal(RevealStrategy):
     """Alternates colored/filtered every 2.5s, crossfading smoothly between them"""
 
     HOLD = 2.0
-    TRANSITION = 3
+    TRANSITION = 1.5
     TOTAL = 60.0
 
     def get_name(self) -> str:
