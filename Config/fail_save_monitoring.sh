@@ -184,9 +184,9 @@ ensure_display() {
     done
 
     # Wayland / XWayland fallback (matches start.sh env block)
-    if [ -S "/run/user/$(id -u "$CURRENT_USER")/wayland-0" ]; then
+    if [ -S "/run/user/1000/wayland-0" ]; then
         export WAYLAND_DISPLAY=wayland-0
-        export XDG_RUNTIME_DIR="/run/user/$(id -u "$CURRENT_USER")"
+        export XDG_RUNTIME_DIR=/run/user/1000
         export GDK_BACKEND=x11
         export QT_QPA_PLATFORM=xcb
         export SDL_VIDEODRIVER=x11
