@@ -39,10 +39,6 @@ if ! flock -n 200; then
 fi
 
 # ─────────────────────────────────────────────
-# CONFIGURATION — mirrors setup.sh paths exactly
-
-
-# ─────────────────────────────────────────────
 CURRENT_USER=$USER
 HOME_DIR="/home/$CURRENT_USER"
 PROJECT_DIR="$HOME_DIR/facial_processing"
@@ -188,9 +184,9 @@ ensure_display() {
     done
 
     # Wayland / XWayland fallback (matches start.sh env block)
-    if [ -S "/run/user/1000/wayland-0" ]; then
+    if [ -S "/run/user/$(id -u "$CURRENT_USER")/wayland-0" ]; then
         export WAYLAND_DISPLAY=wayland-0
-        export XDG_RUNTIME_DIR=/run/user/1000
+        export XDG_RUNTIME_DIR="/run/user/$(id -u "$CURRENT_USER")"
         export GDK_BACKEND=x11
         export QT_QPA_PLATFORM=xcb
         export SDL_VIDEODRIVER=x11
@@ -202,14 +198,44 @@ ensure_display() {
     log_err "No display found — OpenCV windows will not work"
 }
 
+# ─────────────────────────────────────────────
+# DISPLAY HEALTH — with strike tolerance
+#
+# Uses the SAME env (XAUTHORITY etc.) that main.py itself runs under,
+# so this check tests the thing that actually matters instead of
+# whatever DISPLAY/XAUTHORITY the watchdog happened to inherit.
+#
+# A single failed probe is NOT fatal — the Pi can be too busy (camera
+# init / mediapipe) to answer xdpyinfo within the timeout even though
+# the compositor and monitors are completely fine. We only act after
+# DISPLAY_GRACE_CHECKS consecutive failures.
+# ─────────────────────────────────────────────
+DISPLAY_FAIL_STRIKES=0
+DISPLAY_GRACE_CHECKS=3     # require 3 consecutive REAL failures before killing
+LOAD_BUSY_THRESHOLD="3.0"  # 1-min load avg above this = Pi is just busy, not dead (tune for your core count)
+
+# Returns 0 (true) if the system was busy enough that a slow xdpyinfo reply
+# is expected/benign, rather than evidence the compositor is actually dead.
+system_is_busy() {
+    local load1
+    load1=$(awk '{print $1}' /proc/loadavg 2>/dev/null || echo 0)
+    awk -v l="$load1" -v t="$LOAD_BUSY_THRESHOLD" 'BEGIN { exit !(l > t) }'
+}
+
 check_display_health() {
-    if [ ! -S "/run/user/1000/wayland-0" ]; then
+    if [ ! -S "/run/user/$(id -u "$CURRENT_USER")/wayland-0" ]; then
         log_err "Wayland socket missing! Display server may be dead."
         return 1
     fi
 
-    if ! timeout 3 xdpyinfo -display :0 >/dev/null 2>&1; then
-        log_err "XWayland (:0) not responding!"
+    if ! DISPLAY=:0 XAUTHORITY="${XAUTHORITY:-$HOME_DIR/.Xauthority}" \
+         timeout 8 xdpyinfo -display :0 >/dev/null 2>&1; then
+        local load; load=$(cat /proc/loadavg 2>/dev/null || echo 'n/a')
+        if system_is_busy; then
+            log_warn "XWayland (:0) slow to respond, but system is busy (load: $load) — treating as benign, not a strike"
+            return 2   # distinct code: failed, but excused due to load
+        fi
+        log_err "XWayland (:0) not responding! Load avg: $load (not under heavy load — likely a real failure)"
         return 1
     fi
 
@@ -344,6 +370,7 @@ declare -A PKG_MAP=(
     [PIL]="Pillow"
     # System info (optional but checked in wrinkles / alignment)
     [scipy]="scipy"
+    [google.protobuf]="protobuf"
 )
 
 reinstall_pkg() {
@@ -352,7 +379,15 @@ reinstall_pkg() {
     ensure_pip_healthy
     log_warn "Reinstalling $pip_spec into main-env..."
     if ! "$MAIN_ENV/bin/pip" install --quiet "$pip_spec" >> "$LOG_DIR/pip_install.log" 2>&1; then
-      log_err "Failed to reinstall $pip_spec — see $LOG_DIR/pip_install.log"
+        log_err "Failed to reinstall $pip_spec — see $LOG_DIR/pip_install.log"
+        return 1
+    fi
+
+    if [ "$import_name" = "mediapipe" ]; then
+        log_warn "Re‑pinning numpy>=2.0 after mediapipe install..."
+        if ! "$MAIN_ENV/bin/pip" install "numpy>=2.0" --force-reinstall >> "$LOG_DIR/pip_install.log" 2>&1; then
+            log_err "Failed to reinstall numpy>=2.0 — see $LOG_DIR/pip_install.log"
+        fi
     fi
 }
 
@@ -425,7 +460,7 @@ start_main_app() {
     # ── Wait for Wayland socket (mirrors start.sh exactly) ────────────────
     local WAYLAND_TIMEOUT=60
     local elapsed=0
-    until [ -S "/run/user/1000/wayland-0" ]; do
+    until [ -S "/run/user/$(id -u "$CURRENT_USER")/wayland-0" ]; do
         sleep 1
         elapsed=$(( elapsed + 1 ))
         if (( elapsed >= WAYLAND_TIMEOUT )); then
@@ -450,7 +485,7 @@ start_main_app() {
     # ── Set full display environment (mirrors start.sh env block) ─────────
     export DISPLAY=:0
     export WAYLAND_DISPLAY=wayland-0
-    export XDG_RUNTIME_DIR=/run/user/1000
+    export XDG_RUNTIME_DIR="/run/user/$(id -u "$CURRENT_USER")"
     export GDK_BACKEND=x11
     export QT_QPA_PLATFORM=xcb
     export SDL_VIDEODRIVER=x11
@@ -472,7 +507,7 @@ start_main_app() {
     sudo \
     DISPLAY=:0 \
     WAYLAND_DISPLAY=wayland-0 \
-    XDG_RUNTIME_DIR=/run/user/1000 \
+    XDG_RUNTIME_DIR="/run/user/$(id -u "$CURRENT_USER")" \
     GDK_BACKEND=x11 \
     QT_QPA_PLATFORM=xcb \
     SDL_VIDEODRIVER=x11 \
@@ -643,7 +678,6 @@ cleanup() {
     # Restore default signal handling immediately so further Ctrl+C doesn't re-trigger
     trap - SIGINT SIGTERM EXIT
 
-    echo "Failsafe monitor shutting down — stopping child processes..."
 
     # Kill main.py gracefully first, then hard
     if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
@@ -657,7 +691,6 @@ cleanup() {
     pkill -f "rpicam-vid" 2>/dev/null || true
     pkill -f "ffmpeg.*video10" 2>/dev/null || true
 
-    echo "Shutdown complete."
     exit 0
 }
 trap cleanup SIGINT SIGTERM EXIT
@@ -705,7 +738,23 @@ while true; do
         check_disk
         check_memory
         check_monitors
-        check_display_health || { log_err "Display unhealthy — restarting main.py"; sudo pkill -f "facial_processing/Code/main.py" 2>/dev/null || true; }
+        display_status=0
+        check_display_health || display_status=$?
+
+        if (( display_status == 0 )); then
+            DISPLAY_FAIL_STRIKES=0
+        elif (( display_status == 2 )); then
+            # Busy, not dead — don't touch the strike counter at all
+            :
+        else
+            DISPLAY_FAIL_STRIKES=$(( DISPLAY_FAIL_STRIKES + 1 ))
+            log_warn "Display check failed — strike $DISPLAY_FAIL_STRIKES/$DISPLAY_GRACE_CHECKS"
+            if (( DISPLAY_FAIL_STRIKES >= DISPLAY_GRACE_CHECKS )); then
+                log_err "Display unhealthy for $DISPLAY_GRACE_CHECKS consecutive real (non-load) failures — restarting main.py"
+                sudo pkill -f "facial_processing/Code/main.py" 2>/dev/null || true
+                DISPLAY_FAIL_STRIKES=0
+            fi
+        fi
     fi
 
 

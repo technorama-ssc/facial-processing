@@ -205,3 +205,31 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ── Project‑specific output files ──
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tiff
+original.png
+diff_*.png
+diff_*.jpg
+preview_source.jpg
+
+# MediaPipe model (downloaded at runtime)
+*.tflite
+
+# ── Runtime state ──
+settings.json
+*.pid
+*.lock
+*.tmp
+*.bak
+
+# ── Log directories ──
+logs/
+
+# ── Virtual environment (if placed in project root) ──
+main-env/
+.venv/
