@@ -54,12 +54,35 @@ def _make_colored_grid(ctx):
     return tuple(result)
 
 
+def _add_green_border_to_original(grid, ctx):
+    """Fügt einen grünen Rand um das Originalbild hinzu."""
+    if grid is None or "cell_keys" not in ctx:
+        return grid
+
+    from config import ORIGINAL_KEY, SCREEN_W, SCREEN_H
+
+    grid_list = list(grid)
+    cell_keys = ctx["cell_keys"]
+
+    for i, key in enumerate(cell_keys):
+        if key == ORIGINAL_KEY:
+            cv2.rectangle(grid_list[i], (5, 5),
+                          (SCREEN_W - 5, SCREEN_H - 5),
+                          (0, 255, 0), 8)
+            break
+
+    return tuple(grid_list)
+
+
 def _make_filtered_grid(ctx):
     """Show the final filtered images."""
     if "grid_clean" not in ctx or ctx["grid_clean"] is None:
         return None
 
     filtered_list = [c.copy() for c in ctx["grid_clean"]]
+
+    filtered_list = _add_green_border_to_original(filtered_list, ctx)
+
     return tuple(filtered_list)
 
 
@@ -91,6 +114,8 @@ def _make_dissolve_grid(ctx, alpha):
         blended = cv2.addWeighted(diff_img, 1 - alpha, filtered_img, alpha, 0)
         result.append(blended)
 
+    result = _add_green_border_to_original(result, ctx)
+
     return tuple(result)
 
 
@@ -114,6 +139,8 @@ def _make_subtle_grid(ctx):
                 c = cv2.addWeighted(c, 0.50, diff_img, 0.50, 0)
 
         result.append(c)
+
+    result = _add_green_border_to_original(result, ctx)
 
     return tuple(result)
 
