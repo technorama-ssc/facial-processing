@@ -125,7 +125,7 @@
     function renderVariants() {
         const grid = document.getElementById('variant-grid');
         grid.innerHTML = availableVariants.map(v => {
-            const isActive = v.id === currentVariant;  // v is an object now
+            const isActive = v.id === currentVariant;
             return `
                 <div class="variant-card ${isActive ? 'active' : ''}"
                      onclick="setVariant('${v.id}')">

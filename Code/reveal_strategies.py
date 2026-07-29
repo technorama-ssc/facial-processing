@@ -123,8 +123,7 @@ def _make_subtle_grid(ctx):
             diff_img = cv2.imread(DIFF_PATHS[key])
             if diff_img is not None:
                 diff_img = _fit_image(diff_img, SCREEN_W, SCREEN_H)
-                # ✅ LOW OPACITY: 8% diff overlay
-                c = cv2.addWeighted(c, 0.92, diff_img, 0.08, 0)
+                c = cv2.addWeighted(c, 0.50, diff_img, 0.50, 0)
 
         result.append(c)
 
@@ -242,7 +241,7 @@ class SubtleReveal(RevealStrategy):
         return "Subtle"
 
     def get_description(self) -> str:
-        return "Colored overlays at 8% opacity"
+        return "Colored overlays at 50% opacity"
 
     def get_initial_grid(self, ctx):
         ctx["reveal_start"] = time.time()
