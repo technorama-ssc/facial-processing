@@ -274,6 +274,7 @@
             const data = await res.json();
             currentDuration = data.duration;
             document.getElementById('duration-input').value = currentDuration;
+            setStatus(`Current: ${currentDuration}s`, 'saved');
         } catch (e) {
             console.error('Failed to load duration:', e);
         }
@@ -352,8 +353,8 @@
     document.getElementById('save-duration-btn').addEventListener('click', saveDuration);
 
     // Load everything
-    loadVariant();
-    loadDuration();
+    await loadVariant();
+    await loadDuration();
 </script>
 </body>
 </html>

@@ -269,8 +269,11 @@ def _load_settings():
             saved_strategy = data.get('reveal_strategy')
             if saved_strategy:
                 set_strategy(saved_strategy)
+            saved_duration = data.get('reveal_duration')
+            if saved_duration:
+                cfg.REVEAL_DURATION = int(saved_duration)
         except Exception as e:
-            logger.error("Could not load settings: %s", e)
+            logger.exception("Could not load settings: %s", e)
     _apply_intensities()
 
 
@@ -282,10 +285,10 @@ def _save_settings():
                 'disabled_filters': list(_disabled_filters),
                 'preview_image_path': _preview_image_path,
                 'reveal_strategy': get_strategy(),
+                'reveal_duration': cfg.REVEAL_DURATION,  # Add this
             }, f, indent=2)
     except Exception as e:
         logger.error("Could not save settings: %s", e)
-
 
 def _pct_to_value(min_val: float, max_val: float, pct: int) -> float:
     """
