@@ -91,7 +91,7 @@ class HandleFlow:
         self.display.show_loading("Abschluss...", 0.9)
 
         time.sleep(0.2)
-        self.display.show_loading("Fertig", 1.0)
+        self.display.show_loading("Fertig!", 1.0)
         time.sleep(0.3)  # let user see completion
 
         return result

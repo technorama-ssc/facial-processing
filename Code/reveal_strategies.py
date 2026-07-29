@@ -30,7 +30,7 @@ class RevealStrategy(ABC):
         pass
 
 
-def _make_colored_grid(ctx, text="Here's what changed"):
+def _make_colored_grid(ctx):
     """Show colored diff overlays on the filtered images."""
     if "grid_clean" not in ctx or ctx["grid_clean"] is None:
         return None
@@ -49,9 +49,6 @@ def _make_colored_grid(ctx, text="Here's what changed"):
                 c[:] = diff_img
         result.append(c)
 
-    for i, item in enumerate(result):
-        result[i] = print_text(item, text, font_scale=1, position="top")
-
     return tuple(result)
 
 
@@ -61,14 +58,6 @@ def _make_filtered_grid(ctx):
         return None
 
     filtered_list = [c.copy() for c in ctx["grid_clean"]]
-    for i in range(len(filtered_list)):
-        filtered_list[i] = print_text(
-            filtered_list[i],
-            "Here's the result",
-            font_scale=1,
-            position="top",
-            style="pill"
-        )
     return tuple(filtered_list)
 
 
@@ -100,9 +89,6 @@ def _make_dissolve_grid(ctx, alpha):
         blended = cv2.addWeighted(diff_img, 1 - alpha, filtered_img, alpha, 0)
         result.append(blended)
 
-    for i, item in enumerate(result):
-        result[i] = print_text(item, "Here's what changed", font_scale=1, position="top")
-
     return tuple(result)
 
 
@@ -127,13 +113,10 @@ def _make_subtle_grid(ctx):
 
         result.append(c)
 
-    for i, item in enumerate(result):
-        result[i] = print_text(item, "Subtle changes", font_scale=1, position="top", style="pill")
-
     return tuple(result)
 
 
-def _add_exit_prompt(grid, text="Press any button to continue"):
+def _add_exit_prompt(grid, text="Drücke einen Knopf um fortzufahren."):
     """Add exit prompt to grid."""
     if grid is None:
         return None
@@ -148,6 +131,78 @@ def _add_exit_prompt(grid, text="Press any button to continue"):
             style="pill"
         )
     return tuple(grid)
+
+
+class SlideshowDissolveReveal(RevealStrategy):
+    """Alternates colored/filtered every 2.5s, crossfading smoothly between them"""
+
+    HOLD = 2.0
+    TRANSITION = 0.5
+    TOTAL = 60.0
+
+    def get_name(self) -> str:
+        return "Slideshow Dissolve"
+
+    def get_description(self) -> str:
+        return "Alternates colored/filtered every 2.5s with a smooth crossfade"
+
+    def get_initial_grid(self, ctx):
+        ctx["reveal_start"] = time.time()
+        ctx["sd_phase"] = "hold_colored"
+        ctx["sd_phase_start"] = ctx["reveal_start"]
+        ctx["prompt_shown"] = False
+        return _make_colored_grid(ctx)
+
+    def _grid_for_phase(self, ctx, phase, elapsed):
+        """Build the grid for the current phase/elapsed-in-phase."""
+        if phase == "hold_colored":
+            return _make_colored_grid(ctx)
+        if phase == "hold_filtered":
+            return _make_filtered_grid(ctx)
+        if phase == "to_filtered":
+            alpha = min(elapsed / self.TRANSITION, 1.0)
+            return _make_dissolve_grid(ctx, alpha)
+        if phase == "to_colored":
+            alpha = min(elapsed / self.TRANSITION, 1.0)
+            return _make_dissolve_grid(ctx, 1.0 - alpha)
+        return None
+
+    def update(self, ctx, just_pressed):
+        now = time.time()
+
+        if now - ctx.get("reveal_start", now) >= self.TOTAL or just_pressed:
+            return None, True
+
+        phase = ctx.get("sd_phase", "hold_colored")
+        elapsed = now - ctx.get("sd_phase_start", now)
+
+        duration = self.HOLD if phase.startswith("hold") else self.TRANSITION
+
+        if elapsed >= duration:
+            next_phase = {
+                "hold_colored": "to_filtered",
+                "to_filtered": "hold_filtered",
+                "hold_filtered": "to_colored",
+                "to_colored": "hold_colored",
+            }[phase]
+            ctx["sd_phase"] = next_phase
+            ctx["sd_phase_start"] = now
+            grid = self._grid_for_phase(ctx, next_phase, 0.0)
+
+            if not ctx.get("prompt_shown"):
+                ctx["prompt_shown"] = True
+                grid = _add_exit_prompt(grid)
+
+            return grid, False
+
+        if phase in ("to_filtered", "to_colored"):
+            grid = self._grid_for_phase(ctx, phase, elapsed)
+            if not ctx.get("prompt_shown"):
+                ctx["prompt_shown"] = True
+                grid = _add_exit_prompt(grid)
+            return grid, False
+
+        return None, False
 
 
 class StandardReveal(RevealStrategy):
@@ -301,9 +356,9 @@ class DissolveReveal(RevealStrategy):
 
 REVEAL_STRATEGIES = {
     "standard": StandardReveal(),
-    "slideshow": SlideshowReveal(),
     "dissolve": DissolveReveal(),
     "subtle": SubtleReveal(),
+    "slideshow": SlideshowDissolveReveal(),
 }
 
 DEFAULT_STRATEGY = "standard"
