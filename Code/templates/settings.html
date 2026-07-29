@@ -115,7 +115,7 @@
             const res = await fetch('/reveal-variant');
             const data = await res.json();
             currentVariant = data.current;
-            availableVariants = data.available;
+            availableVariants = data.available;  // This is an array of objects now
             renderVariants();
         } catch (e) {
             console.error('Failed to load variant:', e);
@@ -125,13 +125,12 @@
     function renderVariants() {
         const grid = document.getElementById('variant-grid');
         grid.innerHTML = availableVariants.map(v => {
-            const info = VARIANT_INFO[v] || {label: v, desc: ''};
-            const isActive = v === currentVariant;
+            const isActive = v.id === currentVariant;  // v is an object now
             return `
                 <div class="variant-card ${isActive ? 'active' : ''}"
-                     onclick="setVariant('${v}')">
-                    <span class="name">${info.label}</span>
-                    <span class="desc">${info.desc}</span>
+                     onclick="setVariant('${v.id}')">
+                    <span class="name">${v.name}</span>
+                    <span class="desc">${v.description}</span>
                     ${isActive ? '<span class="badge">● Active</span>' : ''}
                 </div>
             `;
