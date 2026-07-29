@@ -211,7 +211,16 @@ ensure_display() {
 # DISPLAY_GRACE_CHECKS consecutive failures.
 # ─────────────────────────────────────────────
 DISPLAY_FAIL_STRIKES=0
-DISPLAY_GRACE_CHECKS=3   # require 3 consecutive failures (~9 min at current cadence) before killing
+DISPLAY_GRACE_CHECKS=3     # require 3 consecutive REAL failures before killing
+LOAD_BUSY_THRESHOLD="3.0"  # 1-min load avg above this = Pi is just busy, not dead (tune for your core count)
+
+# Returns 0 (true) if the system was busy enough that a slow xdpyinfo reply
+# is expected/benign, rather than evidence the compositor is actually dead.
+system_is_busy() {
+    local load1
+    load1=$(awk '{print $1}' /proc/loadavg 2>/dev/null || echo 0)
+    awk -v l="$load1" -v t="$LOAD_BUSY_THRESHOLD" 'BEGIN { exit !(l > t) }'
+}
 
 check_display_health() {
     if [ ! -S "/run/user/$(id -u "$CURRENT_USER")/wayland-0" ]; then
@@ -221,7 +230,12 @@ check_display_health() {
 
     if ! DISPLAY=:0 XAUTHORITY="${XAUTHORITY:-$HOME_DIR/.Xauthority}" \
          timeout 8 xdpyinfo -display :0 >/dev/null 2>&1; then
-        log_err "XWayland (:0) not responding! Load avg: $(cat /proc/loadavg 2>/dev/null || echo 'n/a')"
+        local load; load=$(cat /proc/loadavg 2>/dev/null || echo 'n/a')
+        if system_is_busy; then
+            log_warn "XWayland (:0) slow to respond, but system is busy (load: $load) — treating as benign, not a strike"
+            return 2   # distinct code: failed, but excused due to load
+        fi
+        log_err "XWayland (:0) not responding! Load avg: $load (not under heavy load — likely a real failure)"
         return 1
     fi
 
@@ -724,13 +738,19 @@ while true; do
         check_disk
         check_memory
         check_monitors
-        if check_display_health; then
+        display_status=0
+        check_display_health || display_status=$?
+
+        if (( display_status == 0 )); then
             DISPLAY_FAIL_STRIKES=0
+        elif (( display_status == 2 )); then
+            # Busy, not dead — don't touch the strike counter at all
+            :
         else
             DISPLAY_FAIL_STRIKES=$(( DISPLAY_FAIL_STRIKES + 1 ))
             log_warn "Display check failed — strike $DISPLAY_FAIL_STRIKES/$DISPLAY_GRACE_CHECKS"
             if (( DISPLAY_FAIL_STRIKES >= DISPLAY_GRACE_CHECKS )); then
-                log_err "Display unhealthy for $DISPLAY_GRACE_CHECKS consecutive checks — restarting main.py"
+                log_err "Display unhealthy for $DISPLAY_GRACE_CHECKS consecutive real (non-load) failures — restarting main.py"
                 sudo pkill -f "facial_processing/Code/main.py" 2>/dev/null || true
                 DISPLAY_FAIL_STRIKES=0
             fi
