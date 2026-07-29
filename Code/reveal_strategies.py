@@ -29,35 +29,6 @@ class RevealStrategy(ABC):
         pass
 
 
-def _add_green_border_to_original(grid, ctx):
-    """Add a green border around the original image ONCE."""
-    if grid is None or "cell_keys" not in ctx:
-        return grid
-
-    # Check if we already have a cached version with border
-    if ctx.get("_bordered_grid") is not None:
-        return ctx["_bordered_grid"]
-
-    grid_list = list(grid)
-    cell_keys = ctx["cell_keys"]
-
-    for i, key in enumerate(cell_keys):
-        if key == "Original":
-            # Draw a thick green border around the original image
-            cv2.rectangle(grid_list[i], (8, 8),
-                          (SCREEN_W - 8, SCREEN_H - 8),
-                          (0, 255, 0), 10)
-            # Add a subtle glow effect with a second thinner border
-            cv2.rectangle(grid_list[i], (18, 18),
-                          (SCREEN_W - 18, SCREEN_H - 18),
-                          (100, 255, 100), 3)
-            break
-
-    bordered = tuple(grid_list)
-    ctx["_bordered_grid"] = bordered  # Cache it!
-    return bordered
-
-
 def _add_exit_prompt(grid, text="Drücke einen Knopf um fortzufahren."):
     """Add exit prompt to grid."""
     if grid is None:
@@ -75,15 +46,33 @@ def _add_exit_prompt(grid, text="Drücke einen Knopf um fortzufahren."):
     return tuple(grid)
 
 
+def _add_green_border_to_original(grid, ctx):
+    """Add a green border around the original image ALWAYS."""
+    if grid is None or "cell_keys" not in ctx:
+        return grid
+
+    grid_list = list(grid)
+    cell_keys = ctx["cell_keys"]
+
+    for i, key in enumerate(cell_keys):
+        if key == "Original":
+            # Draw a thick green border around the original image
+            cv2.rectangle(grid_list[i], (8, 8),
+                          (SCREEN_W - 8, SCREEN_H - 8),
+                          (0, 255, 0), 10)
+            # Add a subtle glow effect with a second thinner border
+            cv2.rectangle(grid_list[i], (18, 18),
+                          (SCREEN_W - 18, SCREEN_H - 18),
+                          (100, 255, 100), 3)
+            break
+
+    return tuple(grid_list)
+
+
 def _make_colored_grid(ctx):
     """Show colored diff overlays on the filtered images."""
     if "grid_clean" not in ctx or ctx["grid_clean"] is None:
         return None
-
-    # Check cache first
-    cache_key = "colored_grid"
-    if ctx.get(cache_key) is not None:
-        return ctx[cache_key]
 
     canvases = list(ctx["grid_clean"])
     cell_keys = ctx["cell_keys"]
@@ -99,9 +88,7 @@ def _make_colored_grid(ctx):
                 c[:] = diff_img
         result.append(c)
 
-    grid = tuple(result)
-    ctx[cache_key] = grid  # Cache it
-    return grid
+    return tuple(result)
 
 
 def _make_filtered_grid(ctx):
@@ -109,15 +96,8 @@ def _make_filtered_grid(ctx):
     if "grid_clean" not in ctx or ctx["grid_clean"] is None:
         return None
 
-    # Check cache first
-    cache_key = "filtered_grid"
-    if ctx.get(cache_key) is not None:
-        return ctx[cache_key]
-
     filtered_list = [c.copy() for c in ctx["grid_clean"]]
-    grid = tuple(filtered_list)
-    ctx[cache_key] = grid  # Cache it
-    return grid
+    return tuple(filtered_list)
 
 
 def _make_dissolve_grid(ctx, alpha):
@@ -131,6 +111,12 @@ def _make_dissolve_grid(ctx, alpha):
 
     for i, canvas in enumerate(canvases):
         key = cell_keys[i]
+        c = canvas.copy()
+
+        # For Original, just use the canvas (green border will be added later)
+        if key == "Original":
+            result.append(c)
+            continue
 
         diff_img = cv2.imread(DIFF_PATHS.get(key, ""))
         filtered_img = cv2.imread(IMAGE_PATHS.get(key, ""))
@@ -156,11 +142,6 @@ def _make_subtle_grid(ctx):
     if "grid_clean" not in ctx or ctx["grid_clean"] is None:
         return None
 
-    # Check cache first
-    cache_key = "subtle_grid"
-    if ctx.get(cache_key) is not None:
-        return ctx[cache_key]
-
     canvases = list(ctx["grid_clean"])
     cell_keys = ctx["cell_keys"]
     result = []
@@ -168,6 +149,11 @@ def _make_subtle_grid(ctx):
     for i, canvas in enumerate(canvases):
         c = canvas.copy()
         key = cell_keys[i]
+
+        # For Original, just use the canvas (green border will be added later)
+        if key == "Original":
+            result.append(c)
+            continue
 
         if key in DIFF_PATHS:
             diff_img = cv2.imread(DIFF_PATHS[key])
@@ -177,22 +163,19 @@ def _make_subtle_grid(ctx):
 
         result.append(c)
 
-    grid = tuple(result)
-    ctx[cache_key] = grid  # Cache it
-    return grid
+    return tuple(result)
 
 
 def _prepare_reveal_grid(grid, ctx, prompt_text="Drücke einen Knopf um fortzufahren."):
     """
     Prepare a grid for display by:
-    1. Adding green border to original (cached)
-    2. Adding exit prompt
-    Returns the final grid ready for display.
+    1. Adding green border to Original (ALWAYS)
+    2. Adding exit prompt to ALL images
     """
     if grid is None:
         return None
 
-    # Add green border (uses cache internally)
+    # Add green border to Original (always)
     grid_with_border = _add_green_border_to_original(grid, ctx)
 
     # Add exit prompt (always re-applied since it has text overlay)
