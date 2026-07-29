@@ -73,6 +73,107 @@
             border-radius: 20px;
             margin-top: 0.5rem;
         }
+
+        /* Duration input styles */
+        .duration-control {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .duration-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .duration-row label {
+            font-size: 0.9rem;
+            color: var(--text);
+        }
+
+        .duration-input {
+            background: var(--bg-row);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            font-size: 1.1rem;
+            padding: 0.4rem 0.6rem;
+            width: 100px;
+            font-family: var(--mono);
+            text-align: center;
+            transition: border-color 0.2s;
+        }
+
+        .duration-input:focus {
+            outline: none;
+            border-color: var(--gold-light);
+        }
+
+        .duration-input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .duration-unit {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .btn-save-duration {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--green-light);
+            background: transparent;
+            border: 1px solid var(--green-dim);
+            border-radius: 4px;
+            padding: 0.4rem 1rem;
+            cursor: pointer;
+            transition: color 0.15s, border-color 0.15s, background 0.15s;
+        }
+
+        .btn-save-duration:hover {
+            color: var(--bg);
+            background: var(--green-light);
+            border-color: var(--green-light);
+        }
+
+        .btn-save-duration:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .save-status {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            transition: color 0.3s;
+            min-width: 100px;
+        }
+
+        .save-status.saved {
+            color: var(--green-light);
+        }
+
+        .save-status.error {
+            color: #c0503a;
+        }
+
+        .duration-error {
+            color: #c0503a;
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+            display: none;
+        }
+
+        .duration-error.visible {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -94,6 +195,25 @@
         <div class="variant-grid" id="variant-grid"></div>
     </div>
 
+    <div class="settings-group">
+        <h2>Reveal Duration</h2>
+        <p>How long (in seconds) should the reveal phase last before automatically returning to the camera?</p>
+
+        <div class="duration-control">
+            <div class="duration-row">
+                <label for="duration-input">Duration:</label>
+                <input type="number" id="duration-input" class="duration-input"
+                       min="1" step="1" value="30">
+                <span class="duration-unit">seconds</span>
+                <button class="btn-save-duration" id="save-duration-btn">Save</button>
+                <span class="save-status" id="duration-status"></span>
+            </div>
+            <div class="duration-error" id="duration-error">
+                Please enter a valid number (at least 1 second).
+            </div>
+        </div>
+    </div>
+
     <div class="footer">
         <span class="footer-count" id="status"></span>
     </div>
@@ -102,13 +222,14 @@
 <script>
     let currentVariant = 'standard';
     let availableVariants = [];
+    let currentDuration = 30;
 
     async function loadVariant() {
         try {
             const res = await fetch('/reveal-variant');
             const data = await res.json();
             currentVariant = data.current;
-            availableVariants = data.available;  // This is an array of objects now
+            availableVariants = data.available;
             renderVariants();
         } catch (e) {
             console.error('Failed to load variant:', e);
@@ -137,16 +258,102 @@
             if (data.ok) {
                 currentVariant = variant;
                 renderVariants();
+                setStatus('Variant updated', 'saved');
             } else {
-                document.getElementById('status').textContent = 'Error switching variant';
+                setStatus('Error switching variant', 'error');
             }
         } catch (e) {
             console.error('Failed to set variant:', e);
-            document.getElementById('status').textContent = 'Error switching variant';
+            setStatus('Error switching variant', 'error');
         }
     }
 
+    async function loadDuration() {
+        try {
+            const res = await fetch('/reveal-duration');
+            const data = await res.json();
+            currentDuration = data.duration;
+            document.getElementById('duration-input').value = currentDuration;
+        } catch (e) {
+            console.error('Failed to load duration:', e);
+        }
+    }
+
+    function setStatus(msg, cls) {
+        const el = document.getElementById('duration-status');
+        el.textContent = msg;
+        el.className = 'save-status ' + cls;
+        setTimeout(() => {
+            el.textContent = '';
+            el.className = 'save-status';
+        }, 3000);
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('duration-error');
+        el.textContent = msg || 'Please enter a valid number (at least 1 second).';
+        el.classList.add('visible');
+        setTimeout(() => {
+            el.classList.remove('visible');
+        }, 3000);
+    }
+
+    async function saveDuration() {
+        const input = document.getElementById('duration-input');
+        const btn = document.getElementById('save-duration-btn');
+        const value = input.value.trim();
+
+        if (value === '') {
+            showError('Please enter a number.');
+            return;
+        }
+
+        const duration = parseInt(value);
+        if (isNaN(duration) || duration < 1) {
+            showError('Please enter a valid number (at least 1 second).');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        try {
+            const res = await fetch('/reveal-duration', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({duration: duration})
+            });
+            const data = await res.json();
+            if (data.ok) {
+                currentDuration = duration;
+                setStatus(`Saved: ${duration}s`, 'saved');
+            } else {
+                showError(data.error || 'Error saving duration');
+                setStatus('Error', 'error');
+            }
+        } catch (e) {
+            showError('Network error. Please try again.');
+            setStatus('Error', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save';
+        }
+    }
+
+    // Enter key support
+    document.getElementById('duration-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveDuration();
+        }
+    });
+
+    // Save button click
+    document.getElementById('save-duration-btn').addEventListener('click', saveDuration);
+
+    // Load everything
     loadVariant();
+    loadDuration();
 </script>
 </body>
 </html>

@@ -7,6 +7,7 @@ from reveal_strategies import set_strategy, get_strategy, get_strategies
 import cv2
 import numpy as np
 from flask import Flask, request, jsonify, render_template, send_file
+import config as cfg
 
 from config import ALL_FILTERS, SETTINGS_FILE
 
@@ -587,3 +588,32 @@ def set_reveal_variant_route(variant):
         _save_settings()
         return jsonify({"ok": True, "variant": variant})
     return jsonify({"error": "Unknown variant"}), 400
+
+
+@app.route('/reveal-duration', methods=['GET'])
+def get_reveal_duration():
+    """Get the current reveal duration in seconds."""
+    return jsonify({
+        "duration": cfg.REVEAL_DURATION
+    })
+
+
+@app.route('/reveal-duration', methods=['POST'])
+def set_reveal_duration():
+    """Set the reveal duration in seconds."""
+    data = request.get_json(force=True)
+    duration = data.get('duration')
+
+    if duration is None:
+        return jsonify({"error": "Missing duration"}), 400
+
+    try:
+        duration = int(duration)
+        if duration < 1:
+            return jsonify({"error": "Duration must be at least 1 second"}), 400
+
+        cfg.REVEAL_DURATION = duration
+        _save_settings()
+        return jsonify({"ok": True, "duration": duration})
+    except ValueError:
+        return jsonify({"error": "Invalid duration format"}), 400
