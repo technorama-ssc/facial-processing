@@ -103,13 +103,6 @@
     let currentVariant = 'standard';
     let availableVariants = [];
 
-    const VARIANT_INFO = {
-        'standard': {label: 'Standard', desc: 'Colored overlay 5s → filtered images'},
-        'slideshow': {label: 'Slideshow', desc: 'Alternates original/filtered every 2s'},
-        'subtle': {label: 'Subtle', desc: 'Colored overlay at 8% opacity'},
-        'split': {label: 'Split View', desc: 'Left: original, Right: filtered'}
-    };
-
     async function loadVariant() {
         try {
             const res = await fetch('/reveal-variant');

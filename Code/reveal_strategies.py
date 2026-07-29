@@ -175,7 +175,6 @@ class SlideshowDissolveReveal(RevealStrategy):
 
         phase = ctx.get("sd_phase", "hold_colored")
         elapsed = now - ctx.get("sd_phase_start", now)
-
         duration = self.HOLD if phase.startswith("hold") else self.TRANSITION
 
         if elapsed >= duration:
@@ -188,21 +187,16 @@ class SlideshowDissolveReveal(RevealStrategy):
             ctx["sd_phase"] = next_phase
             ctx["sd_phase_start"] = now
             grid = self._grid_for_phase(ctx, next_phase, 0.0)
-
-            if not ctx.get("prompt_shown"):
-                ctx["prompt_shown"] = True
-                grid = _add_exit_prompt(grid)
-
-            return grid, False
-
-        if phase in ("to_filtered", "to_colored"):
+        elif phase in ("to_filtered", "to_colored"):
             grid = self._grid_for_phase(ctx, phase, elapsed)
-            if not ctx.get("prompt_shown"):
-                ctx["prompt_shown"] = True
-                grid = _add_exit_prompt(grid)
-            return grid, False
+        else:
+            return None, False
 
-        return None, False
+        if not ctx.get("prompt_shown"):
+            ctx["prompt_shown"] = True
+            grid = _add_exit_prompt(grid)
+
+        return grid, False
 
 
 class StandardReveal(RevealStrategy):
