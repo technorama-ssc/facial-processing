@@ -18,7 +18,8 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-PROJECT_DIR="$HOME/facial_processing"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 CODE_DIR="$PROJECT_DIR/Code"
 ENV_DIR="$HOME/main-env"
 CURRENT_USER=$USER
@@ -327,7 +328,7 @@ echo -e "${BLUE}=======================================================${NC}"
 echo ""
 
 # Launcher wrapper
-cat > "/home/$CURRENT_USER/facial_processing/start.sh" << LAUNCHER
+cat > "$PROJECT_DIR/start.sh" << LAUNCHER
 #!/bin/bash
 
 LOG_TAG="facial_processing"
@@ -366,11 +367,11 @@ export QT_QPA_PLATFORM=xcb
 export SDL_VIDEODRIVER=x11
 
 exec /home/$CURRENT_USER/main-env/bin/python \
-    /home/$CURRENT_USER/facial_processing/Code/main.py
+    $PROJECT_DIR/Code/main.py
 LAUNCHER
 
-chmod +x "/home/$CURRENT_USER/facial_processing/start.sh"
-chmod +x "/home/$CURRENT_USER/facial_processing/Config/fail_save_monitoring.sh"
+chmod +x "$PROJECT_DIR/start.sh"
+chmod +x "$PROJECT_DIR/Config/fail_save_monitoring.sh"
 
 # Systemd service
 sudo tee /etc/systemd/system/facial_processing.service > /dev/null << EOF
@@ -383,9 +384,9 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 User=$CURRENT_USER
-WorkingDirectory=/home/$CURRENT_USER/facial_processing/Code
+WorkingDirectory=$PROJECT_DIR/Code
 ExecStartPre=/bin/sleep 15
-ExecStart=/home/$CURRENT_USER/facial_processing/Config/fail_save_monitoring.sh
+ExecStart=$PROJECT_DIR/Config/fail_save_monitoring.sh
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -395,7 +396,7 @@ StandardError=journal
 WantedBy=graphical.target
 EOF
 
-chmod +x "$HOME/facial_processing/Code/main.py" 2>/dev/null || true
+chmod +x "$PROJECT_DIR/Code/main.py" 2>/dev/null || true
 
 sudo systemctl daemon-reload
 sudo systemctl enable facial_processing.service

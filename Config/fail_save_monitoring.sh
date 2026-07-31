@@ -41,7 +41,8 @@ fi
 # ─────────────────────────────────────────────
 CURRENT_USER=$USER
 HOME_DIR="/home/$CURRENT_USER"
-PROJECT_DIR="$HOME_DIR/facial_processing"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 CODE_DIR="$PROJECT_DIR/Code"
 MAIN_ENV="$HOME_DIR/main-env"
 
@@ -548,7 +549,7 @@ check_flask_port() {
 
     local app_alive=false
     { [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; } && app_alive=true
-    pgrep -f "facial_processing/Code/main.py" &>/dev/null && app_alive=true
+    pgrep -f "$PROJECT_DIR/Code/main.py" &>/dev/null && app_alive=true
 
     if $app_alive; then
         FLASK_FAIL_STRIKES=$(( FLASK_FAIL_STRIKES + 1 ))
@@ -557,7 +558,7 @@ check_flask_port() {
             return
         fi
         log_err "Flask unresponsive for $FLASK_GRACE_CHECKS checks — killing main.py"
-        sudo pkill -f "facial_processing/Code/main.py" 2>/dev/null || true
+        sudo pkill -f "$PROJECT_DIR/Code/main.py" 2>/dev/null || true
         sleep 2
     else
         log_err "Flask port $FLASK_PORT not responding and main.py is down"
@@ -586,7 +587,7 @@ watch_main_app() {
 
     if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
         alive=true
-    elif pgrep -f "facial_processing/Code/main.py" &>/dev/null; then
+    elif pgrep -f "$PROJECT_DIR/Code/main.py" &>/dev/null; then
         alive=true
     fi
 
@@ -687,7 +688,7 @@ cleanup() {
     fi
 
     # Mop up any remaining processes
-    pkill -f "facial_processing/Code/main.py" 2>/dev/null || true
+    pkill -f "$PROJECT_DIR/Code/main.py" 2>/dev/null || true
     pkill -f "rpicam-vid" 2>/dev/null || true
     pkill -f "ffmpeg.*video10" 2>/dev/null || true
 
@@ -709,7 +710,7 @@ ensure_display
 check_monitors
 
 # Kill any stale processes from a previous run
-sudo pkill -f "facial_processing/Code/main.py" 2>/dev/null || true
+sudo pkill -f "$PROJECT_DIR/Code/main.py" 2>/dev/null || true
 sudo pkill -f "rpicam-vid" 2>/dev/null || true
 sudo pkill -f "ffmpeg.*video10" 2>/dev/null || true
 sleep 1
@@ -751,7 +752,7 @@ while true; do
             log_warn "Display check failed — strike $DISPLAY_FAIL_STRIKES/$DISPLAY_GRACE_CHECKS"
             if (( DISPLAY_FAIL_STRIKES >= DISPLAY_GRACE_CHECKS )); then
                 log_err "Display unhealthy for $DISPLAY_GRACE_CHECKS consecutive real (non-load) failures — restarting main.py"
-                sudo pkill -f "facial_processing/Code/main.py" 2>/dev/null || true
+                sudo pkill -f "$PROJECT_DIR/Code/main.py" 2>/dev/null || true
                 DISPLAY_FAIL_STRIKES=0
             fi
         fi
