@@ -45,6 +45,8 @@ The photo is then shown alongside three "impostor" images on four screens and vi
 | Buttons        | 4 physical GPIO buttons (pins 15, 9, 10, 11)               |
 | USB dock       | Club3D USB-A 3.0 Dual 4K dock (DisplayLink)                |
 
+See [Pinstructure.md](Documentation/Pinstructure.md) for a complete visual pin diagram.
+
 ### Button Mapping
 
 | Button  | GPIO Pin | Screen Position      |
@@ -92,7 +94,7 @@ facial_processing/
 │   ├── Tutorial.md                    # Step-by-step setup guide
 │   ├── Important_Commands.md          # Some troubleshooting commands
 │   ├── Git-Instructions.md            # Git workflow guide
-│   └── Pinstructure.txt               # GPIO pin mapping
+│   └── Pinstructure.md                # GPIO pin mapping
 ├── README.md                          # This file
 └── LICENSE                            # Project license
 

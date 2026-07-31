@@ -37,9 +37,9 @@ The key pair will be stored in the ~/.ssh/ folder:
 Before cloning the repository, the public key must be added to GitHub.
 
 1. First, display the generated public key on the Raspberry Pi:
-````
-cat ~/.ssh/id_ed25519.pub
-````
+    ````
+    cat ~/.ssh/id_ed25519.pub
+    ````
 2. Copy the entire output. It will look something like this: ``ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... ``
 3. Go to the [GitHub SSH-Settings](https://github.com/settings/keys)
 4. Add the copied SSH key under SSH keys.
@@ -171,7 +171,7 @@ Occasionally it happens that when you try to switch branches, you have made chan
 Solutions:
 1. Stage changes
     - Only if you are sure you want to keep them
-3. Use git stash
+2. Use git stash
     - ``git stash`` temporarily hides changes
     - Resets working directory to last commit
     - Can be restored later using git stash pop
