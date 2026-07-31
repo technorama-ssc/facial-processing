@@ -100,6 +100,22 @@ def _make_filtered_grid(ctx):
     return tuple(filtered_list)
 
 
+def _build_dissolve_cache(ctx):
+    cache = {}
+    cell_keys = ctx["cell_keys"]
+    for key in cell_keys:
+        if key == "Original":
+            continue
+        diff_img = cv2.imread(DIFF_PATHS.get(key, ""))
+        filtered_img = cv2.imread(IMAGE_PATHS.get(key, ""))
+        if diff_img is not None:
+            diff_img = _fit_image(diff_img, SCREEN_W, SCREEN_H)
+        if filtered_img is not None:
+            filtered_img = _fit_image(filtered_img, SCREEN_W, SCREEN_H)
+        cache[key] = (diff_img, filtered_img)
+    return cache
+
+
 def _make_dissolve_grid(ctx, alpha):
     """Blend colored diff (alpha=0) into filtered result (alpha=1)."""
     if "grid_clean" not in ctx or ctx["grid_clean"] is None:
@@ -107,29 +123,22 @@ def _make_dissolve_grid(ctx, alpha):
 
     canvases = list(ctx["grid_clean"])
     cell_keys = ctx["cell_keys"]
+    cache = ctx.get("_dissolve_cache", {})
     result = []
 
     for i, canvas in enumerate(canvases):
         key = cell_keys[i]
         c = canvas.copy()
 
-        # For Original, just use the canvas (green border will be added later)
         if key == "Original":
             result.append(c)
             continue
 
-        diff_img = cv2.imread(DIFF_PATHS.get(key, ""))
-        filtered_img = cv2.imread(IMAGE_PATHS.get(key, ""))
-
-        if diff_img is not None:
-            diff_img = _fit_image(diff_img, SCREEN_W, SCREEN_H)
-        else:
-            diff_img = canvas.copy()
-
-        if filtered_img is not None:
-            filtered_img = _fit_image(filtered_img, SCREEN_W, SCREEN_H)
-        else:
-            filtered_img = canvas.copy()
+        diff_img, filtered_img = cache.get(key, (None, None))
+        if diff_img is None:
+            diff_img = c
+        if filtered_img is None:
+            filtered_img = c
 
         blended = cv2.addWeighted(diff_img, 1 - alpha, filtered_img, alpha, 0)
         result.append(blended)
@@ -196,15 +205,17 @@ class SlideshowReveal(RevealStrategy):
     def get_description(self) -> str:
         return "Alternates colored/filtered every 2.5s with a smooth crossfade"
 
+
     def get_initial_grid(self, ctx):
         ctx["reveal_start"] = time.time()
         ctx["sd_phase"] = "hold_colored"
         ctx["sd_phase_start"] = ctx["reveal_start"]
-        # Clear caches when starting fresh
         ctx.pop("_bordered_grid", None)
         ctx.pop("colored_grid", None)
         ctx.pop("filtered_grid", None)
         ctx.pop("subtle_grid", None)
+
+        ctx["_dissolve_cache"] = _build_dissolve_cache(ctx)
 
         grid = _make_colored_grid(ctx)
         return _prepare_reveal_grid(grid, ctx)
@@ -275,6 +286,9 @@ class StandardReveal(RevealStrategy):
     def update(self, ctx, just_pressed):
         now = time.time()
 
+        if just_pressed:
+            return None, True
+
         if ctx.get("reveal_stage") == "colored":
             if now - ctx.get("reveal_start", now) >= 5.0:
                 ctx["reveal_stage"] = "filtered"
@@ -284,7 +298,7 @@ class StandardReveal(RevealStrategy):
             return None, False
 
         if ctx.get("reveal_stage") == "filtered":
-            if now - ctx.get("reveal_start", now) >= cfg.REVEAL_DURATION or just_pressed:
+            if now - ctx.get("reveal_start", now) >= cfg.REVEAL_DURATION:
                 return None, True
 
             grid = _make_filtered_grid(ctx)
@@ -343,11 +357,17 @@ class DissolveReveal(RevealStrategy):
         ctx.pop("filtered_grid", None)
         ctx.pop("subtle_grid", None)
 
+        ctx["_dissolve_cache"] = _build_dissolve_cache(ctx)
+
         grid = _make_dissolve_grid(ctx, 0.0)
         return _prepare_reveal_grid(grid, ctx)
 
     def update(self, ctx, just_pressed):
         now = time.time()
+
+        if just_pressed:
+            return None, True
+
         elapsed = now - ctx.get("reveal_start", now)
 
         if elapsed < self.DURATION:
