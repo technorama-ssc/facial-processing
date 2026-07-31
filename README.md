@@ -121,6 +121,8 @@ http://<raspberry-pi-ip>:5000
 - Presets available: Standard / Subtle / Strong / Maximum
 - Settings auto-save to `Config/settings.json`
 
+After tuning the filter strengths, we recommend saving the setting.json file as a backup. This allows you to quickly restore your preferred configuration if the file is accidentally overwritten or lost.
+
 ---
 
 ## Key Dependencies
