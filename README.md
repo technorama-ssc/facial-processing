@@ -45,9 +45,6 @@ The photo is then shown alongside three "impostor" images on four screens and vi
 | Buttons        | 4 physical GPIO buttons (pins 15, 9, 10, 11)               |
 | USB dock       | Club3D USB-A 3.0 Dual 4K dock (DisplayLink)                |
 
-### 4. **Button-to-Screen Mapping**
-The hardware table mentions pins but not which button maps to which screen:
-
 ### Button Mapping
 
 | Button  | GPIO Pin | Screen Position      |
@@ -56,7 +53,6 @@ The hardware table mentions pins but not which button maps to which screen:
 | BUTTON2 | 9        | Screen 2             |
 | BUTTON3 | 10       | Screen 3             |
 | BUTTON4 | 11       | Screen 4 (rightmost) |
-
 
 
 ---
