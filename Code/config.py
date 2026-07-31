@@ -242,7 +242,7 @@ OVAL_THICKNESS = 6
 OVAL_FILL_ALPHA = 0.08
 FONT_SCALE_MSG = 1.5
 FONT_THICKNESS = 3
-HAIR_THRESHOLD=0.35
+HAIR_THRESHOLD=0.50
 
 # ====================================================================== #
 # HANDLE FLOW CONFIGURATIONS
@@ -250,6 +250,7 @@ HAIR_THRESHOLD=0.35
 FILTER_START = 0.3
 FILTER_END = 0.9
 COUNTDOWN = 1
+REVEAL_DURATION = 30
 
 
 # ====================================================================== #
@@ -257,4 +258,3 @@ COUNTDOWN = 1
 # ====================================================================== #
 
 WAITING_TEXT = "Mach ein Bild!"
-

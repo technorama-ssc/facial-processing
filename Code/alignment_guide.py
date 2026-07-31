@@ -250,15 +250,15 @@ class AlignmentGuide:
 
     def _get_status_message(self) -> str:
         if not self.current_face_visible:
-            return "Kein Gesicht wurde gefunden"
+            return "Kein Gesicht wurde gefunden."
         if not self.face_in_oval:
-            return "Bitte bewege dein Gesicht in den Kreis"
+            return "Bitte bewege dein Gesicht in den Kreis."
         if self.current_yaw > YAW_THRESHOLD:
-            return "Bitte schaue in die Kamera"
+            return "Bitte schaue in die Kamera."
         if self.hair_ratio > self.hair_threshold and self.apply_hair_detection:
-            return "Bitte nimm deine Haare aus dem Gesicht"
+            return "Bitte nimm deine Haare aus dem Gesicht."
         if self.is_aligned():
-            return "Halte still und warte"
+            return "Halte still und warte."
         return "Halte still..."
 
     def _draw_status_msg(self, frame: np.ndarray, w: int, h: int, color) -> None:

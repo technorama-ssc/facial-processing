@@ -10,23 +10,7 @@ from face_enhance import FaceEnhancer
 from alignment_guide import AlignmentGuide
 from helper_functions import _apply_filters, prepare_frame
 from wrinkles import CombinedWrinkleDrawer
-
-def show_changed_grid(ctx, text, position, font_scale=1):
-    canvases = list(ctx["grid_clean"])
-    cell_keys = ctx["cell_keys"]
-    result = []
-    for i, canvas in enumerate(canvases):
-        c = canvas.copy()
-        key = cell_keys[i]
-        if key in DIFF_PATHS:
-            img = cv2.imread(DIFF_PATHS[key])
-            if img is not None:
-                img = _fit_image(img, SCREEN_W, SCREEN_H)
-                c[:] = img
-        result.append(c)
-    for i, item in enumerate(result):
-        result[i] = print_text(item, text, font_scale=font_scale, position=position)
-    return tuple(result)
+from reveal_strategies import get_current_strategy_instance
 
 
 def _handle_confirm_wait(just_pressed, ctx):
@@ -107,7 +91,7 @@ class HandleFlow:
         self.display.show_loading("Abschluss...", 0.9)
 
         time.sleep(0.2)
-        self.display.show_loading("Fertig", 1.0)
+        self.display.show_loading("Fertig!", 1.0)
         time.sleep(0.3)  # let user see completion
 
         return result
@@ -131,13 +115,10 @@ class HandleFlow:
 
         frame = cv2.flip(frame, 1)
 
-        # Use FAST detection (5 points, frame-skipped)
         landmarks = self.face_enhancer.detect_landmarks_fast(frame)
 
-        # Update alignment guide
         self.alignment_guide.update(landmarks, frame=frame)
 
-        # Draw overlay
         frame = self.alignment_guide.draw(frame, landmarks)
 
         aligned = self.alignment_guide.is_aligned()
@@ -246,74 +227,30 @@ class HandleFlow:
         return canvas1, canvas2
 
     def handle_reveal(self, just_pressed, ctx):
-        now = time.time()
+        """Handle reveal state using the selected strategy."""
 
-        # ── Stage 1: Show colored diff overlay ──────────────────────────
         if ctx.get("reveal_stage") is None:
-            ctx["reveal_stage"] = "colored"
-            ctx["reveal_start"] = now
-
-            # Show colored diff overlay
-            colored_canvases = show_changed_grid(ctx, "Hier ist was sich verändert hat.", "top")
-            self.display.update_frame(colored_canvases, flip=False)
+            ctx["reveal_stage"] = "showing"
+            strategy = get_current_strategy_instance()
+            grid = strategy.get_initial_grid(ctx)
+            if grid:
+                self.display.update_frame(grid, flip=False)
             return "reveal"
 
-        # ── Stage 2: After 3s, switch to filtered images ───────────────
-        if ctx["reveal_stage"] == "colored":
-            if now - ctx["reveal_start"] >= 5.0:  # Show colored for 3 seconds
-                ctx["reveal_stage"] = "filtered"
-                ctx["reveal_start"] = now
+        strategy = get_current_strategy_instance()
+        grid, should_exit = strategy.update(ctx, just_pressed)
 
-                # Show filtered images (no overlay)
-                filtered_list = list(ctx["grid_clean"])
-                for i in range(len(filtered_list)):
-                    filtered_list[i] = print_text(
-                        filtered_list[i],
-                        "Hier ist das Ergebnis",
-                        font_scale=1.0,
-                        position="top",
-                        style="pill"
-                    )
-                self.display.update_frame(tuple(filtered_list), flip=False)
-            return "reveal"
+        if grid:
+            self.display.update_frame(grid, flip=False)
 
-        # ── Stage 3: After 3 more seconds, wait for button or auto-exit ──
-        if ctx["reveal_stage"] == "filtered":
-            # Show prompt after 1.5s
-            if not ctx.get("prompt_shown") and now - ctx["reveal_start"] >= 1.5:
-                ctx["prompt_shown"] = True
-                filtered_list = list(ctx["grid_clean"])
-                for i in range(len(filtered_list)):
-                    filtered_list[i] = print_text(
-                        filtered_list[i],
-                        "Drücke einen Knopf, um fortzufahren.",
-                        font_scale=0.7,
-                        position="bottom",
-                        style="pill"
-                    )
-                self.display.update_frame(tuple(filtered_list), flip=False)
-                return "reveal"
-
-            if now - ctx["reveal_start"] >= 30.0:
-                ctx["reveal_stage"] = None
-                ctx["prompt_shown"] = False
-                ctx["reveal_start"] = None
-                self.aligned_since = None
-                self.display.reset_monitors = True
-                self.alignment_guide.reset()
-                return "live"
-
-            # Or button press exits immediately
-            if just_pressed:
-                ctx["reveal_stage"] = None
-                ctx["prompt_shown"] = False
-                ctx["reveal_start"] = None
-                self.aligned_since = None
-                self.display.reset_monitors = True
-                self.alignment_guide.reset()
-                return "live"
-
-            return "reveal"
+        if should_exit:
+            ctx["reveal_stage"] = None
+            ctx["prompt_shown"] = False
+            ctx["reveal_start"] = None
+            self.aligned_since = None
+            self.display.reset_monitors = True
+            self.alignment_guide.reset()
+            return "live"
 
         return "reveal"
 

@@ -3,10 +3,11 @@ import json
 import logging
 import os
 import threading
-
+from reveal_strategies import set_strategy, get_strategy, get_strategies
 import cv2
 import numpy as np
 from flask import Flask, request, jsonify, render_template, send_file
+import config as cfg
 
 from config import ALL_FILTERS, SETTINGS_FILE
 
@@ -265,8 +266,14 @@ def _load_settings():
             saved_path = data.get('preview_image_path')
             if saved_path and os.path.exists(saved_path):
                 _preview_image_path = saved_path
+            saved_strategy = data.get('reveal_strategy')
+            if saved_strategy:
+                set_strategy(saved_strategy)
+            saved_duration = data.get('reveal_duration')
+            if saved_duration:
+                cfg.REVEAL_DURATION = int(saved_duration)
         except Exception as e:
-            logger.error("Could not load settings: %s", e)
+            logger.exception("Could not load settings: %s", e)
     _apply_intensities()
 
 
@@ -277,10 +284,11 @@ def _save_settings():
                 'intensities': dict(_filter_intensities),
                 'disabled_filters': list(_disabled_filters),
                 'preview_image_path': _preview_image_path,
+                'reveal_strategy': get_strategy(),
+                'reveal_duration': cfg.REVEAL_DURATION,  # Add this
             }, f, indent=2)
     except Exception as e:
         logger.error("Could not save settings: %s", e)
-
 
 def _pct_to_value(min_val: float, max_val: float, pct: int) -> float:
     """
@@ -556,10 +564,59 @@ def get_filter_meta():
             "hint": FILTER_META[name]["hint"],
             "intensity": _filter_intensities.get(name, default_pct),
             "enabled": name not in _disabled_filters,
-            "default_pct": default_pct,  # ← true linear default position
+            "default_pct": default_pct,
         })
 
     return jsonify({
         "filters": filters_out,
         "categories": CATEGORIES,
     })
+
+@app.route('/settings')
+def settings():
+    return render_template('settings.html')
+
+@app.route('/reveal-variant', methods=['GET'])
+def get_reveal_variant_route():
+    """Get the current reveal variant."""
+    return jsonify({
+        "current": get_strategy(),
+        "available": get_strategies()
+    })
+
+@app.route('/reveal-variant/<variant>', methods=['POST'])
+def set_reveal_variant_route(variant):
+    """Set the reveal variant."""
+    if set_strategy(variant):
+        _save_settings()
+        return jsonify({"ok": True, "variant": variant})
+    return jsonify({"error": "Unknown variant"}), 400
+
+
+@app.route('/reveal-duration', methods=['GET'])
+def get_reveal_duration():
+    """Get the current reveal duration in seconds."""
+    return jsonify({
+        "duration": cfg.REVEAL_DURATION
+    })
+
+
+@app.route('/reveal-duration', methods=['POST'])
+def set_reveal_duration():
+    """Set the reveal duration in seconds."""
+    data = request.get_json(force=True)
+    duration = data.get('duration')
+
+    if duration is None:
+        return jsonify({"error": "Missing duration"}), 400
+
+    try:
+        duration = int(duration)
+        if duration < 1:
+            return jsonify({"error": "Duration must be at least 1 second"}), 400
+
+        cfg.REVEAL_DURATION = duration
+        _save_settings()
+        return jsonify({"ok": True, "duration": duration})
+    except ValueError:
+        return jsonify({"error": "Invalid duration format"}), 400

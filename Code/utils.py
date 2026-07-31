@@ -28,7 +28,7 @@ def _get_font(size: int) -> ImageFont.FreeTypeFont:
 
 
 def print_text(frame, text,
-               font_scale=2.5, thickness=3, color=(255, 255, 255),
+               font_scale=2.5, color=(255, 255, 255),
                position="top", style="bar"):
     """
     Renders Unicode text (including Umlauts) via Pillow so ä/ö/ü display correctly.

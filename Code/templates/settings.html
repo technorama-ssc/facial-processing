@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technorama — Reveal Settings</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}">
+    <style>
+        .settings-group {
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .settings-group h2 {
+            color: var(--gold-light);
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .settings-group p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+        }
+
+        .variant-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .variant-card {
+            background: var(--bg-row);
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            text-align: center;
+        }
+
+        .variant-card:hover {
+            border-color: var(--gold-dim);
+        }
+
+        .variant-card.active {
+            border-color: var(--green-light);
+            background: #1a2010;
+        }
+
+        .variant-card .name {
+            font-weight: 600;
+            color: var(--text);
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        .variant-card .desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .variant-card .badge {
+            display: inline-block;
+            font-size: 0.6rem;
+            font-family: var(--mono);
+            background: var(--green-dim);
+            color: var(--green-light);
+            padding: 0.15rem 0.5rem;
+            border-radius: 20px;
+            margin-top: 0.5rem;
+        }
+
+        /* Duration input styles */
+        .duration-control {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .duration-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .duration-row label {
+            font-size: 0.9rem;
+            color: var(--text);
+        }
+
+        .duration-input {
+            background: var(--bg-row);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            font-size: 1.1rem;
+            padding: 0.4rem 0.6rem;
+            width: 100px;
+            font-family: var(--mono);
+            text-align: center;
+            transition: border-color 0.2s;
+        }
+
+        .duration-input:focus {
+            outline: none;
+            border-color: var(--gold-light);
+        }
+
+        .duration-input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .duration-unit {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .btn-save-duration {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--green-light);
+            background: transparent;
+            border: 1px solid var(--green-dim);
+            border-radius: 4px;
+            padding: 0.4rem 1rem;
+            cursor: pointer;
+            transition: color 0.15s, border-color 0.15s, background 0.15s;
+        }
+
+        .btn-save-duration:hover {
+            color: var(--bg);
+            background: var(--green-light);
+            border-color: var(--green-light);
+        }
+
+        .btn-save-duration:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .save-status {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            transition: color 0.3s;
+            min-width: 100px;
+        }
+
+        .save-status.saved {
+            color: var(--green-light);
+        }
+
+        .save-status.error {
+            color: #c0503a;
+        }
+
+        .duration-error {
+            color: #c0503a;
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+            display: none;
+        }
+
+        .duration-error.visible {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+<div class="panel">
+    <div class="header">
+        <h1 class="header-title">Settings</h1>
+        <div class="header-rule"></div>
+    </div>
+
+    <nav class="nav">
+        <a href="/" class="{{ 'active' if request.path == '/' else '' }}">Filters</a>
+        <a href="/tune" class="{{ 'active' if request.path == '/tune' else '' }}">Intensity</a>
+        <a href="/settings" class="{{ 'active' if request.path == '/settings' else '' }}">Reveal Settings</a>
+    </nav>
+
+    <div class="settings-group">
+        <h2>Reveal Mode</h2>
+        <p>Choose how the "reveal" step shows the difference between original and filtered images.</p>
+        <div class="variant-grid" id="variant-grid"></div>
+    </div>
+
+    <div class="settings-group">
+        <h2>Reveal Duration</h2>
+        <p>How long (in seconds) should the reveal phase last before automatically returning to the camera?</p>
+
+        <div class="duration-control">
+            <div class="duration-row">
+                <label for="duration-input">Duration:</label>
+                <input type="number" id="duration-input" class="duration-input"
+                       min="1" step="1" value="30">
+                <span class="duration-unit">seconds</span>
+                <button class="btn-save-duration" id="save-duration-btn">Save</button>
+                <span class="save-status" id="duration-status"></span>
+            </div>
+            <div class="duration-error" id="duration-error">
+                Please enter a valid number (at least 1 second).
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <span class="footer-count" id="status"></span>
+    </div>
+</div>
+
+<script>
+    let currentVariant = 'standard';
+    let availableVariants = [];
+    let currentDuration = 30;
+
+    async function loadVariant() {
+        try {
+            const res = await fetch('/reveal-variant');
+            const data = await res.json();
+            currentVariant = data.current;
+            availableVariants = data.available;
+            renderVariants();
+        } catch (e) {
+            console.error('Failed to load variant:', e);
+        }
+    }
+
+    function renderVariants() {
+        const grid = document.getElementById('variant-grid');
+        grid.innerHTML = availableVariants.map(v => {
+            const isActive = v.id === currentVariant;
+            return `
+                <div class="variant-card ${isActive ? 'active' : ''}"
+                     onclick="setVariant('${v.id}')">
+                    <span class="name">${v.name}</span>
+                    <span class="desc">${v.description}</span>
+                    ${isActive ? '<span class="badge">● Active</span>' : ''}
+                </div>
+            `;
+        }).join('');
+    }
+
+    async function setVariant(variant) {
+        try {
+            const res = await fetch(`/reveal-variant/${variant}`, {method: 'POST'});
+            const data = await res.json();
+            if (data.ok) {
+                currentVariant = variant;
+                renderVariants();
+                setStatus('Variant updated', 'saved');
+            } else {
+                setStatus('Error switching variant', 'error');
+            }
+        } catch (e) {
+            console.error('Failed to set variant:', e);
+            setStatus('Error switching variant', 'error');
+        }
+    }
+
+    async function loadDuration() {
+        try {
+            const res = await fetch('/reveal-duration');
+            const data = await res.json();
+            currentDuration = data.duration;
+            document.getElementById('duration-input').value = currentDuration;
+            setStatus(`Current: ${currentDuration}s`, 'saved');
+        } catch (e) {
+            console.error('Failed to load duration:', e);
+        }
+    }
+
+    function setStatus(msg, cls) {
+        const el = document.getElementById('duration-status');
+        el.textContent = msg;
+        el.className = 'save-status ' + cls;
+        setTimeout(() => {
+            el.textContent = '';
+            el.className = 'save-status';
+        }, 3000);
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('duration-error');
+        el.textContent = msg || 'Please enter a valid number (at least 1 second).';
+        el.classList.add('visible');
+        setTimeout(() => {
+            el.classList.remove('visible');
+        }, 3000);
+    }
+
+    async function saveDuration() {
+        const input = document.getElementById('duration-input');
+        const btn = document.getElementById('save-duration-btn');
+        const value = input.value.trim();
+
+        if (value === '') {
+            showError('Please enter a number.');
+            return;
+        }
+
+        const duration = parseInt(value);
+        if (isNaN(duration) || duration < 1) {
+            showError('Please enter a valid number (at least 1 second).');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        try {
+            const res = await fetch('/reveal-duration', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({duration: duration})
+            });
+            const data = await res.json();
+            if (data.ok) {
+                currentDuration = duration;
+                setStatus(`Saved: ${duration}s`, 'saved');
+            } else {
+                showError(data.error || 'Error saving duration');
+                setStatus('Error', 'error');
+            }
+        } catch (e) {
+            showError('Network error. Please try again.');
+            setStatus('Error', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save';
+        }
+    }
+
+    // Enter key support
+    document.getElementById('duration-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveDuration();
+        }
+    });
+
+    // Save button click
+    document.getElementById('save-duration-btn').addEventListener('click', saveDuration);
+
+    // Load everything
+    loadVariant();
+    loadDuration();
+</script>
+</body>
+</html>
