@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from hair_detection import Hair
 from config import YAW_THRESHOLD, STABLE_FRAMES_REQUIRED, COLOR_GOOD, COLOR_BAD, COLOR_NO_FACE, OVAL_THICKNESS, \
-    OVAL_RX_RATIO, OVAL_RY_RATIO, FONT_THICKNESS, FONT_SCALE_MSG, OVAL_CENTER_Y_RATIO, OVAL_FILL_ALPHA, LEFT_EYE_COLOR, \
+    OVAL_RX_RATIO, OVAL_RY_RATIO, FONT_THICKNESS, FONT_SCALE_MSG, OVAL_CENTER_Y_RATIO, LEFT_EYE_COLOR, \
     RIGHT_EYE_COLOR, NOSE_COLOR, CHEEK_COLOR, LANDMARK_RADIUS, EXPECTED_EYE_CHEEK_RATIO, HAIR_THRESHOLD, \
     APPLY_HAIR_DETECTION
 from landmarks import NOSE_TIP_AREA, LEFT_EYE_CONTOUR, RIGHT_EYE_CONTOUR, FACE_OVAL
@@ -136,7 +136,7 @@ class AlignmentGuide:
         else:
             self._stable_count = 0
 
-        # STEP 4: Compute hair ratio only when face is in oval and we have a frame
+        # STEP 4: Compute hair ratio only when face is in oval, and we have a frame
         if (
                 self.apply_hair_detection
                 and self.hair is not None

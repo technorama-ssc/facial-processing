@@ -19,7 +19,7 @@ def _clip_beard(mask: np.ndarray, landmarks, h: int) -> np.ndarray:
     Uses landmark 164 (under-nose/philtrum base) and 17 (chin top) to find
     the beard boundary — robust to head tilt and face scale.
     """
-    # Landmark 164 = base of philtrum (just above lip), 13 = upper lip centre
+    # Landmark 164 = base of philtrum (just above lip), 13 = upper lip center
     # Using the average of both gives a stable "top of beard" line
     philtrum = landmarks[164]
     upper_lip = landmarks[13]
@@ -45,7 +45,7 @@ def _ensure_model() -> str:
     if not os.path.exists(_MODEL_PATH) or os.path.getsize(_MODEL_PATH) == 0:
         if os.path.exists(_MODEL_PATH):
             os.remove(_MODEL_PATH)  # remove empty file
-        print(f"[hair_detection] Downloading HairSegmenter model...")
+        print("[hair_detection] Downloading HairSegmenter model...")
         urllib.request.urlretrieve(_MODEL_URL, _MODEL_PATH)
         print("[hair_detection] Download complete.")
     return _MODEL_PATH

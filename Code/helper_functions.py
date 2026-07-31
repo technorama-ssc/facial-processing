@@ -306,7 +306,7 @@ def pick_mole_position(landmarks, zone_indices):
     jitter = random.randint(3, 12)
     cx += random.randint(-jitter, jitter)
     cy += random.randint(-jitter, jitter)
-    return (cx, cy)
+    return cx, cy
 
 
 def draw_mole(image, center, skin_color, eye_dist):

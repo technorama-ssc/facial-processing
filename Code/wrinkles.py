@@ -20,7 +20,7 @@ def get_wrinkle_color_for_point(pt, landmarks):
         if len(pts) >= 3:
             if point_in_region(pt, pts):
                 return region_data["color"]
-    return (60, 80, 100)
+    return 60, 80, 100
 
 
 class CombinedWrinkleDrawer:
@@ -116,7 +116,7 @@ class CombinedWrinkleDrawer:
         tx, ty = x - cx, y - cy
         rx = tx * math.cos(rad) - ty * math.sin(rad)
         ry = tx * math.sin(rad) + ty * math.cos(rad)
-        return (int(rx + cx), int(ry + cy))
+        return int(rx + cx), int(ry + cy)
 
     def get_forehead_bounds(self, lm):
         lb = [70, 63, 105, 66, 107]
@@ -124,7 +124,7 @@ class CombinedWrinkleDrawer:
         tf = [10, 151, 9, 338, 297]
         bys = [lm[i][1] for i in lb + rb if i < len(lm)]
         tys = [lm[i][1] for i in tf if i < len(lm)]
-        if not bys or not tys: return (0, 0, 0, 0)
+        if not bys or not tys: return 0, 0, 0, 0
         xs = [lm[i][0] for i in tf + lb + rb if i < len(lm)]
         return (
             int(min(xs)),
@@ -240,7 +240,7 @@ class CombinedWrinkleDrawer:
             if len(clipped) >= 2:
                 draw_tapered_line(im, clipped, sh, hl, w)
 
-    def draw_hessian_wrinkles(self, im, lm, debug_filename=None):
+    def draw_hessian_wrinkles(self, im, lm):
         canvas = im.copy()
         det, has = self.hessian_detector.detect_wrinkles(im, lm)
         skip_fh = self.check_forehead_has_hair(im, lm) if has and any(r == 'forehead' for r in det) else False
@@ -259,7 +259,7 @@ class CombinedWrinkleDrawer:
                                           st['width'], extra, is_fh, landmarks=lm)
         return canvas, has
 
-    def draw_manual_wrinkles(self, im, lm, debug_filename=None):
+    def draw_manual_wrinkles(self, im, lm):
         canvas = im.copy()
         skip_fh = self.check_forehead_has_hair(im, lm)
         for name, data in WRINKLES.items():
@@ -328,27 +328,27 @@ class CombinedWrinkleDrawer:
             return cv2.GaussianBlur(im, (k, k), 0)
         return im
 
-    def draw_all_wrinkles(self, im, lm, verbose=True, debug_filename=None):
+    def draw_all_wrinkles(self, im, lm, verbose=True):
         if im is None or im.size == 0: return im
         im = self.auto_adjust_brightness(im)
         if config.DETECTION_MODE == "hessian":
-            canvas, hd = self.draw_hessian_wrinkles(im, lm, debug_filename)
+            canvas, hd = self.draw_hessian_wrinkles(im, lm)
             if not hd:
                 if verbose: print("  ⚠ No Hessian — manual")
-                canvas = self.draw_manual_wrinkles(im, lm, debug_filename)
+                canvas = self.draw_manual_wrinkles(im, lm)
                 if config.YOUNG_FACE_MODE:
                     canvas = cv2.addWeighted(im, 1 - config.YOUNG_FACE_OPACITY, canvas, config.YOUNG_FACE_OPACITY, 0)
             elif verbose:
                 print("  ✓ Hessian drawn")
         elif config.DETECTION_MODE == "hybrid":
-            man = self.draw_manual_wrinkles(im, lm, debug_filename)
-            hes, hd = self.draw_hessian_wrinkles(im, lm, debug_filename)
+            man = self.draw_manual_wrinkles(im, lm)
+            hes, hd = self.draw_hessian_wrinkles(im, lm)
             canvas = man if not hd else cv2.addWeighted(man, config.HYBRID_MANUAL_WEIGHT,
                                                         hes, 1 - config.HYBRID_MANUAL_WEIGHT, 0)
             if config.YOUNG_FACE_MODE:
                 canvas = cv2.addWeighted(im, 1 - config.YOUNG_FACE_OPACITY, canvas, config.YOUNG_FACE_OPACITY, 0)
         else:
-            canvas = self.draw_manual_wrinkles(im, lm, debug_filename)
+            canvas = self.draw_manual_wrinkles(im, lm)
             if config.YOUNG_FACE_MODE:
                 canvas = cv2.addWeighted(im, 1 - config.YOUNG_FACE_OPACITY, canvas, config.YOUNG_FACE_OPACITY, 0)
         eb = self.build_eyebrow_mask(im, lm)

@@ -78,7 +78,7 @@ class HardwareManager:
                     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
                     # Test read
-                    ret, test_frame = cap.read()
+                    ret, _test_frame = cap.read()
                     if ret:
                         self.cap = cap
                         logging.info(f"✓ Camera opened on /dev/video{dev} at 640x480")
@@ -199,7 +199,7 @@ class HardwareManager:
                         self.write_buffer_idx, self.read_buffer_idx
                     )
             except Exception as e:
-                logging.error(f"Frame capture error: {e}")
+                logging.exception(f"Frame capture error: {e}")
                 time.sleep(0.1)
 
     def get_frame(self):

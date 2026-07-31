@@ -73,7 +73,6 @@ class FaceEnhancer:
                 small = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
             else:
                 small = image
-                scale = 1.0
 
             rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
             results = self.face_mesh.process(rgb)
@@ -212,11 +211,10 @@ class FaceEnhancer:
         # --- 1. Get face oval and expand forehead symmetrically ---
         oval_pts = np.array(self._get_points(landmarks, FACE_OVAL), dtype=np.float32)
 
-        # Find centre of face (average of leftmost and rightmost)
-        cx = (np.min(oval_pts[:, 0]) + np.max(oval_pts[:, 0])) / 2
+        # Find center of face (average of leftmost and rightmost)
         cy = (np.min(oval_pts[:, 1]) + np.max(oval_pts[:, 1])) / 2
 
-        # Identify points above the centre (forehead region)
+        # Identify points above the center (forehead region)
         # Use a threshold: e.g., y < cy - eye_dist*0.2
         forehead_threshold = cy - eye_dist * 0.2
         forehead_mask = oval_pts[:, 1] < forehead_threshold
@@ -255,7 +253,7 @@ class FaceEnhancer:
         if image is not None:
             hair_mask = self.hair_detection.get_hair_mask_sync(image, landmarks=landmarks)
             if hair_mask is not None:
-                h_img, w_img = image.shape[:2]
+                h_img, _w_img = image.shape[:2]
                 # Clip beard area — only exclude hair above the nose line
                 mid_y = h_img // 2
                 hair_mask[mid_y:, :] = 0
@@ -462,7 +460,6 @@ class FaceEnhancer:
         """
 
         h, w = image.shape[:2]
-        pts = np.array(lm, dtype=np.float32)
         ed = float(self._eye_dist(lm))
 
         if ed < 1.0 or abs(strength) < 0.001:
@@ -589,7 +586,7 @@ class FaceEnhancer:
         # We use linear weighting: lower values more frequent at lower max_cnt.
         possible_counts = []
         for _ in range(5):
-            # Triangular distribution favouring lower numbers when max is small
+            # Triangular distribution favoring lower numbers when max is small
             # Simple: random choice between 1 and max_cnt, but skew
             # Let's create a list manually based on max_cnt
             if max_cnt == 1:
@@ -602,7 +599,6 @@ class FaceEnhancer:
                 # Build [1,2,2,3,3] as default for max=3
                 # For max>3, extend similarly
                 possible_counts = [1]
-                mid = max_cnt // 2
                 for v in range(2, max_cnt + 1):
                     possible_counts.extend([v] * (2 if v < max_cnt else 1))
                 # Trim to 5 entries if longer
@@ -713,7 +709,7 @@ class FaceEnhancer:
         result_bgr = (result_bgr.astype(np.float32) * mask_3ch +
                       image.astype(np.float32) * (1.0 - mask_3ch)).astype(np.uint8)
 
-        # ── Step 2: LAB colour work (only on face region) ───────────────────
+        # ── Step 2: LAB color work (only on face region) ───────────────────
         lab_full = cv2.cvtColor(image, cv2.COLOR_BGR2LAB).astype(np.float32)
         lab_work = cv2.cvtColor(result_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
 
@@ -765,7 +761,7 @@ class FaceEnhancer:
             warm_shift = float(np.clip(
                 (128 - skin_a) * cfg.CHEEKBONE_SHADOW_WARM * 0.04 * cs, 0.0, 4.0))
 
-            # Apply colour adjustments only on face region (hair already excluded by masks)
+            # Apply color adjustments only on face region (hair already excluded by masks)
             lab_work[:, :, 0] = np.clip(
                 lab_work[:, :, 0] + delta_highlight * highlight_mask, 0, 255)
             lab_work[:, :, 1] = np.clip(
@@ -862,14 +858,14 @@ class FaceEnhancer:
             if debug:
                 debug_mask = np.maximum(debug_mask, cm)
 
-            # ── Get target skin colour from cheek reference ──────────────────
+            # ── Get target skin color from cheek reference ──────────────────
             target_bgr = get_skin_color(result, lm, cheek_pts)
             target_lab = cv2.cvtColor(np.uint8([[target_bgr]]), cv2.COLOR_BGR2LAB)[0][0].astype(np.float32)
 
             # Convert current result to LAB once
             lab = cv2.cvtColor(result, cv2.COLOR_BGR2LAB).astype(np.float32)
 
-            # Apply correction to L, a, b using the target skin colour
+            # Apply correction to L, a, b using the target skin color
             for ch, w in [(0, 0.7), (1, 0.4), (2, 0.35)]:  # L gets highest weight
                 current = lab[:, :, ch].copy()
                 target_val = target_lab[ch]
@@ -924,7 +920,7 @@ class FaceEnhancer:
 
     @staticmethod
     def _freckle_color_from_lab(skin_lab: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-        L, a, b = skin_lab
+        L, _a, _b = skin_lab
 
         base_bgr = cv2.cvtColor(
             skin_lab.astype(np.uint8).reshape(1, 1, 3),

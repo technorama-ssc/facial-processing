@@ -11,7 +11,7 @@ from typing import List, Tuple, Optional, Dict
 
 
 class HessianWrinkleDetector:
-    """Automated wrinkle detection using multi-scale Hessian filtering (vectorized)."""
+    """Automated wrinkle detection using multiscale Hessian filtering (vectorized)."""
 
     def __init__(self, scale_range=(0.5, 4.0), scale_step=0.5, sensitivity=0.45):
         self.scale_range = scale_range
@@ -101,7 +101,6 @@ class HessianWrinkleDetector:
 
     def _skeleton_to_paths(self, skeleton: np.ndarray, min_length: int = 10) -> List[List[Tuple[int, int]]]:
         """Convert skeleton to paths using connected components (fast)."""
-        h, w = skeleton.shape
         num_labels, labels = cv2.connectedComponents(skeleton, connectivity=8)
         paths = []
 

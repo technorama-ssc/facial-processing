@@ -2,8 +2,8 @@ import logging
 import threading
 import time
 import cv2
-from utils import print_text, _fit_image
-from config import button_to_index, ORIGINAL_KEY, IMAGE_PATHS, SCREEN_W, DIFF_PATHS, SCREEN_H, FILTER_END, FILTER_START, COUNTDOWN
+from utils import print_text
+from config import button_to_index, ORIGINAL_KEY, IMAGE_PATHS, FILTER_END, FILTER_START, COUNTDOWN
 from hardware import HardwareManager
 from display import DisplayManager
 from face_enhance import FaceEnhancer
@@ -40,18 +40,6 @@ class HandleFlow:
     # ------------------------------------------------------------------ #
     #  HELPERS
     # ------------------------------------------------------------------ #
-
-    def _show_cell(self, grid_frame, index, color, tint=False):
-        canvases = [f.copy() for f in grid_frame]
-
-        if tint:
-            self.display.tint_cell(canvases[index], color=color, alpha=0.35)
-        self.display.draw_cell_border(canvases[index], color=color)
-        if self.text:
-            canvases[index] = print_text(canvases[index], self.text, font_scale=1, position="top")
-
-        self.display.update_frame(tuple(canvases), flip=False)
-        return tuple(canvases)
 
     def _capture_and_enhance(self, frame=None):
 
@@ -208,23 +196,6 @@ class HandleFlow:
         ctx["confirm_time"] = time.time()
         return "confirm_wait"
 
-    def show_changed_grid(self, ctx, text, position):
-        canvas1 = ctx["grid_clean"][0].copy()
-        canvas2 = ctx["grid_clean"][1].copy()
-
-        for idx, key in enumerate(self.display.cell_keys):
-            if key in DIFF_PATHS:
-                img = cv2.imread(DIFF_PATHS[key])
-                if img is not None:
-                    img = _fit_image(img, self.display.cell_width, self.display.cell_height)
-                    x1, y1, x2, y2 = self.display._cell_rect(idx)
-                    if idx < 2:
-                        canvas1[y1:y2, x1:x2] = img
-                    else:
-                        canvas2[y1:y2, x1:x2] = img
-
-        canvas1 = print_text(canvas1, text, font_scale=1, position=position, style="pill")
-        return canvas1, canvas2
 
     def handle_reveal(self, just_pressed, ctx):
         """Handle reveal state using the selected strategy."""

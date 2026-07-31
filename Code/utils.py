@@ -151,7 +151,7 @@ def cubic_bezier(p0: Tuple[float, float], p1: Tuple[float, float],
     mt = 1 - t
     x = mt ** 3 * p0[0] + 3 * mt ** 2 * t * p1[0] + 3 * mt * t ** 2 * p2[0] + t ** 3 * p3[0]
     y = mt ** 3 * p0[1] + 3 * mt ** 2 * t * p1[1] + 3 * mt * t ** 2 * p2[1] + t ** 3 * p3[1]
-    return (x, y)
+    return x, y
 
 
 def generate_bezier_points(points: List[Tuple[int, int]], num_points: int = 30) -> List[Tuple[int, int]]:
@@ -166,7 +166,6 @@ def generate_bezier_points(points: List[Tuple[int, int]], num_points: int = 30) 
         p0 = points[max(0, i - 1)]
         p1 = points[i]
         p2 = points[i + 1]
-        p3 = points[min(len(points) - 1, i + 2)]
         cp1 = ((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
 
         for t in np.linspace(0, 1, num_points):
@@ -216,9 +215,9 @@ def draw_tapered_line(image: np.ndarray, points: List[Tuple[int, int]],
         current_width = max(1, int(max_width * width_factor))
 
         p1, p2 = points[i], points[i + 1]
-        for w in range(current_width):
+        for _w in range(current_width):
             cv2.line(image, p1, p2, shadow_color, 1, cv2.LINE_AA)
 
         highlight_width = max(1, current_width // 2)
-        for w in range(highlight_width):
+        for _w in range(highlight_width):
             cv2.line(image, p1, p2, highlight_color, 1, cv2.LINE_AA)

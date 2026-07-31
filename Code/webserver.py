@@ -139,7 +139,7 @@ def _true_default_pct(filter_name: str) -> int:
 
 
 # ── Intensity state ───────────────────────────────────────────────────────────
-# Initialise each filter at its true default pct (not a hardcoded 50)
+# Initialize each filter at its true default pct (not a hardcoded 50)
 _filter_intensities: dict[str, int] = {
     f: _true_default_pct(f) for f in ALL_FILTERS
 }
@@ -164,7 +164,7 @@ def _get_face_enhancer():
                 from face_enhance import FaceEnhancer
                 _face_enhancer = FaceEnhancer()
             except Exception as e:
-                logger.error("Could not load FaceEnhancer: %s", e)
+                logger.exception("Could not load FaceEnhancer: %s", e)
         return _face_enhancer
 
 
@@ -176,7 +176,7 @@ def _get_wrinkles():
                 from wrinkles import CombinedWrinkleDrawer
                 _wrinkles = CombinedWrinkleDrawer()
             except Exception as e:
-                logger.error("Could not load CombinedWrinkleDrawer: %s", e)
+                logger.exception("Could not load CombinedWrinkleDrawer: %s", e)
         return _wrinkles
 
 
@@ -288,7 +288,7 @@ def _save_settings():
                 'reveal_duration': cfg.REVEAL_DURATION,  # Add this
             }, f, indent=2)
     except Exception as e:
-        logger.error("Could not save settings: %s", e)
+        logger.exception("Could not save settings: %s", e)
 
 def _pct_to_value(min_val: float, max_val: float, pct: int) -> float:
     """
@@ -298,7 +298,6 @@ def _pct_to_value(min_val: float, max_val: float, pct: int) -> float:
 
 
 def _apply_intensities() -> None:
-    import config as cfg
     for filter_name, pct in _filter_intensities.items():
         for attr, (min_val, _default, max_val) in FILTER_PARAMS.get(filter_name, {}).items():
             setattr(cfg, attr, _pct_to_value(min_val, max_val, pct))
@@ -311,8 +310,6 @@ def _render_preview(source_img: np.ndarray, active_filters: list[str]) -> np.nda
     wrinkles = _get_wrinkles()
     if fe is None or wrinkles is None:
         return source_img
-
-    import config as cfg
 
     landmarks = fe.force_detect_full(source_img)
     if landmarks is None:
@@ -343,7 +340,7 @@ def _render_preview(source_img: np.ndarray, active_filters: list[str]) -> np.nda
         try:
             result = fn(result, landmarks)
         except Exception as e:
-            logger.error("Filter '%s' failed: %s", f, e)
+            logger.exception("Filter '%s' failed: %s", f, e)
 
     return result
 
@@ -513,7 +510,7 @@ def preview_render():
     try:
         result = _render_preview(src, active)
     except Exception as e:
-        logger.error("Render error: %s", e)
+        logger.exception("Render error: %s", e)
         return jsonify({"error": str(e)}), 500
 
     return send_file(

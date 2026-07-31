@@ -102,7 +102,7 @@ class FacialProcessingApp:
         try:
             self.hardware.cleanup()
         except Exception as e:
-            logging.error(f"Error cleaning up hardware: {e}")
+            logging.exception(f"Error cleaning up hardware: {e}")
 
         all_paths = list(IMAGE_PATHS.values()) + list(DIFF_PATHS.values())
         for path in all_paths:
@@ -111,7 +111,7 @@ class FacialProcessingApp:
                     os.remove(path)
                     logging.info(f"Deleted {path}")
             except Exception as e:
-                logging.error(f"Could not delete {path}: {e}")
+                logging.exception(f"Could not delete {path}: {e}")
 
 
 def main():

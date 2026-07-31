@@ -93,14 +93,14 @@ class DisplayManager:
 
         # Percentage text
         percent_text = f"{int(progress * 100)}%"
-        (tw, th), _ = cv2.getTextSize(percent_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
+        (tw, _th), _ = cv2.getTextSize(percent_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
         tx = bar_x + (bar_width - tw) // 2
         ty = bar_y - 10
         cv2.putText(frame, percent_text, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX,
                     0.8, (255, 255, 255), 2)
 
         # Main text above the bar
-        (tw2, th2), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
+        (tw2, _th2), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
         tx2 = (w - tw2) // 2
         ty2 = bar_y - 40
         cv2.putText(frame, text, (tx2, ty2), cv2.FONT_HERSHEY_SIMPLEX,
