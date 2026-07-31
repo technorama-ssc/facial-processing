@@ -45,6 +45,20 @@ The photo is then shown alongside three "impostor" images on four screens and vi
 | Buttons        | 4 physical GPIO buttons (pins 15, 9, 10, 11)               |
 | USB dock       | Club3D USB-A 3.0 Dual 4K dock (DisplayLink)                |
 
+### 4. **Button-to-Screen Mapping**
+The hardware table mentions pins but not which button maps to which screen:
+
+### Button Mapping
+
+| Button  | GPIO Pin | Screen Position      |
+|---------|----------|----------------------|
+| BUTTON1 | 15       | Screen 1 (leftmost)  |
+| BUTTON2 | 9        | Screen 2             |
+| BUTTON3 | 10       | Screen 3             |
+| BUTTON4 | 11       | Screen 4 (rightmost) |
+
+
+
 ---
 
 ## Project Structure
@@ -57,6 +71,7 @@ facial_processing/
 │   │   └── tune.css            # CSS Styling for tune.html 
 │   ├── templates/
 │   │   ├── index.html          # Web UI: filter on/off toggles
+│   │   ├── settings.html       # Web UI: reveal options
 │   │   └── tune.html           # Web UI: per-filter intensity sliders
 │   ├── main.py                 # Entry point — app lifecycle, main loop, state machine
 │   ├── handle_flow.py          # State handlers
@@ -69,13 +84,21 @@ facial_processing/
 │   ├── hair_detection.py       # MediaPipe hair segmentation
 │   ├── hessian_detector.py     # Frangi vesselness filter for automatic wrinkle detection
 │   ├── helper_functions.py     # Filter pipeline, warp utilities, diff overlay
+│   ├── reveal_strategies.py    # Different reveal strategies
 │   ├── utils.py                # Text rendering, Bezier curves, image fitting helpers
 │   ├── wrinkles.py             # Wrinkle Filter
 │   └── webserver.py            # Flask admin UI — toggle filters, set intensities, preview
-└── Config/
-    ├── fail_save_monitoring.sh # Watchdog wrapper — restarts main.py, camera etc. on crash
-    ├── display_setup.sh        # Docking Station Connection Setup
-    └── setup.sh                # Package installation, Service-File creation
+├── Config/
+│   ├── fail_save_monitoring.sh # Watchdog wrapper — restarts main.py, camera etc. on crash
+│   ├── display_setup.sh        # Docking Station Connection Setup
+│   └── setup.sh                # Package installation, Service-File creation
+├── Documentation/
+│   ├── Tutorial.md                    # Step-by-step setup guide
+│   ├── Important_Commands.md          # Some troubleshooting commands
+│   ├── Git-Instructions.md            # Git workflow guide
+│   └── Pinstructure.txt               # GPIO pin mapping
+├── README.md                          # This file
+└── LICENSE                            # Project license
 
 ```
 
@@ -108,12 +131,12 @@ You can find everything that you need to set up this project in the [Tutorial](.
 
 ## The 4 reveal strategies
 
-| Filter      | What it does                                                                                           |
-|-------------|--------------------------------------------------------------------------------------------------------|
-| `standard`  | Colored diff overlay for 5s, then switches to the filtered result for up to 30s                        |
-| `slideshow` | 	Alternates between colored diff and filtered result every 2.5s, for up to 30s total                   |
-| `dissolve`  | 	Smooth crossfade from colored diff to filtered result over 3s, then holds on the result for up to 30s |
-| `subtle`    | 	Shows the filtered result with a faint (8%) colored diff overlay for up to 30s                        |
+| Filter      | What it does                                                                             |
+|-------------|------------------------------------------------------------------------------------------|
+| `standard`  | Colored diff overlay for 5s, then switches to the filtered result                        |
+| `slideshow` | 	Alternates between colored diff and filtered result smoothly every 2s,                  |
+| `dissolve`  | 	Smooth crossfade from colored diff to filtered result over 3s, then holds on the result |
+| `subtle`    | 	Shows the filtered result with a faint (8%) colored diff overlay                        |
 
 ---
 
