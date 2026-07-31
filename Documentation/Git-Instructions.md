@@ -56,7 +56,7 @@ git clone SSH-URL
 
 Then navigate into the project folder:
 ````
-cd choice-prediction
+cd facial-processing
 ````
 
 ## Git Commands

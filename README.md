@@ -14,7 +14,6 @@ The photo is then shown alongside three "impostor" images on four screens and vi
 - [The 12 Filters](#the-12-filters)
 - [The 4 Reveal Strategies](#the-4-reveal-strategies)
 - [What You Can Tune](#what-you-can-tune)
-  - [Alignment](#alignment)
 - [Web Admin UI](#web-admin-ui)
 - [Key Dependencies](#key-dependencies)
 
@@ -62,7 +61,7 @@ See [Pinstructure.md](Documentation/Pinstructure.md) for a complete visual pin d
 ## Project Structure
 
 ```
-facial_processing/
+facial-processing/
 ├── Code/
 │   ├── static/                 
 │   │   ├── index.css           # CSS Styling for index.html 
@@ -129,18 +128,19 @@ You can find everything that you need to set up this project in the [Tutorial](.
 
 ## The 4 reveal strategies
 
-| Filter      | What it does                                                                             |
+| Reveal      | What it does                                                                             |
 |-------------|------------------------------------------------------------------------------------------|
 | `standard`  | Colored diff overlay for 5s, then switches to the filtered result                        |
-| `slideshow` | 	Alternates between colored diff and filtered result smoothly every 2s,                  |
-| `dissolve`  | 	Smooth crossfade from colored diff to filtered result over 3s, then holds on the result |
-| `subtle`    | 	Shows the filtered result with a faint (8%) colored diff overlay                        |
+| `slideshow` | Alternates between colored diff and filtered result smoothly every 2s                    |
+| `dissolve`  | Smooth crossfade from colored diff to filtered result over 3s, then holds on the result  |
+| `subtle`    | Shows the filtered result with a faint (8%) colored diff overlay                         |
 
 ---
 
 ## What You Can Tune
 
-### Alignment
+Filter intensities and reveal timing are tuned live via the [Web Admin UI](#web-admin-ui) (`/tune` and `/settings`). 
+The table below covers alignment/capture behavior, set directly in `config.py`.
 
 | Setting                  | Default Value | Description                                                    | Tuning                                                                                                     |
 |--------------------------|---------------|----------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
