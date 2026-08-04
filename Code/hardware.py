@@ -73,8 +73,8 @@ class HardwareManager:
                 if cap.isOpened():
                     # Use camera's native resolution (640x480) or set to a standard 4:3 resolution
                     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('Y', 'U', 'Y', 'V'))
-                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1024)
-                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 576)
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1536)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 864)
                     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
                     # Test read
@@ -167,7 +167,7 @@ class HardwareManager:
             time.sleep(1)
 
             logging.info("Starting camera stream at 1536x864...")
-            cmd = 'rpicam-vid -t 0 --width 1024 --height 576 --autofocus-mode continuous --autofocus-range normal --codec yuv420 --framerate 20 --output - 2>/dev/null | ffmpeg -f rawvideo -pix_fmt yuv420p -s 1536x864 -r 20 -i - -f v4l2 -pix_fmt yuyv422 /dev/video10 2>/dev/null &'
+            cmd = 'rpicam-vid -t 0 --width 1536 --height 864 --autofocus-mode continuous --autofocus-range normal --codec yuv420 --framerate 20 --output - 2>/dev/null | ffmpeg -f rawvideo -pix_fmt yuv420p -s 1536x864 -r 20 -i - -f v4l2 -pix_fmt yuyv422 /dev/video10 2>/dev/null &'
             self.stream_process = subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL,
                                                    stderr=subprocess.DEVNULL)
             time.sleep(2)
