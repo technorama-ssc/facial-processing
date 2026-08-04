@@ -244,52 +244,6 @@ check_display_health() {
 }
 
 # ─────────────────────────────────────────────
-# MONITOR RESTORE (4K Portrait-Modus)
-# ─────────────────────────────────────────────
-restore_monitors() {
-    log "Stelle 4K Portrait-Monitore wieder her..."
-
-    export DISPLAY=:0
-    export XAUTHORITY="/home/technorama/.Xauthority"
-
-    # Warte kurz, falls X-Server noch nicht bereit ist
-    sleep 2
-
-    # Prüfe, ob xrandr verfügbar ist
-    if ! command -v xrandr &>/dev/null; then
-        log_warn "xrandr not found — skipping monitor restore"
-        return 1
-    fi
-
-    # Alle Monitore zurücksetzen
-    for MONITOR in HDMI-A-1 HDMI-A-2 DVI-I-1 DVI-I-2; do
-        DISPLAY=:0 xrandr --output "$MONITOR" --off 2>/dev/null
-    done
-    sleep 2
-
-    # 4K Portrait-Konfiguration
-    log "Setze HDMI-A-1 → right (0,0)"
-    DISPLAY=:0 xrandr --output HDMI-A-1 --mode 2160x3840 --pos 0x0 --rotate right 2>/dev/null
-
-    log "Setze HDMI-A-2 → left (2160,0)"
-    DISPLAY=:0 xrandr --output HDMI-A-2 --mode 2160x3840 --pos 2160x0 --rotate left 2>/dev/null
-
-    log "Setze DVI-I-1 → right (4320,0)"
-    DISPLAY=:0 xrandr --output DVI-I-1 --mode 2160x3840 --pos 4320x0 --rotate right 2>/dev/null
-
-    log "Setze DVI-I-2 → left (6480,0)"
-    DISPLAY=:0 xrandr --output DVI-I-2 --mode 2160x3840 --pos 6480x0 --rotate left 2>/dev/null
-
-    sleep 1
-
-    # Ergebnis prüfen
-    log "Monitor-Konfiguration abgeschlossen:"
-    DISPLAY=:0 xrandr --query | grep " connected" | tee -a "$LOG_FILE"
-
-    return 0
-}
-
-# ─────────────────────────────────────────────
 # MULTI-MONITOR CHECK (xrandr via XWayland)
 # ─────────────────────────────────────────────
 EXPECTED_MONITORS=4
@@ -315,22 +269,26 @@ check_monitors() {
     active_count=$(echo "$xrandr_out" | grep -c ' connected .*[0-9]\+x[0-9]\++[0-9]\++[0-9]\+')
 
     if (( connected_count < EXPECTED_MONITORS )); then
-        log_err "Only ${connected_count}/${EXPECTED_MONITORS} display outputs detected by xrandr — check cables/EDID"
+        log_err "Only ${connected_count}/${EXPECTED_MONITORS} display outputs detected by xrandr — check cables/EDID (this is a hardware-level issue, not something a restart fixes)"
     fi
 
     if (( active_count < EXPECTED_MONITORS )); then
-        log_warn "Only ${active_count}/${EXPECTED_MONITORS} monitors active — attempting to restore..."
-        restore_monitors
-    fi
+        log_warn "Only ${active_count}/${EXPECTED_MONITORS} monitors active — attempting to re-enable inactive outputs"
 
-    # Zusätzlich: Prüfe, ob alle Monitore die richtige Rotation haben
-    if echo "$xrandr_out" | grep -E "(HDMI-A-1|DVI-I-1)" | grep -qv "right"; then
-        log_warn "Monitor rotation incorrect — restoring..."
-        restore_monitors
-    fi
-    if echo "$xrandr_out" | grep -E "(HDMI-A-2|DVI-I-2)" | grep -qv "left"; then
-        log_warn "Monitor rotation incorrect — restoring..."
-        restore_monitors
+        for out in "${connected_outputs[@]}"; do
+            if ! echo "$xrandr_out" | grep "^${out} connected" | grep -q '[0-9]\+x[0-9]\++[0-9]\++[0-9]\+'; then
+                log_warn "Enabling inactive output: $out"
+                xrandr --output "$out" --auto 2>>"$LOG_DIR/xrandr.log"
+            fi
+        done
+
+        sleep 2
+        xrandr_out=$(xrandr --query 2>/dev/null)
+        active_count=$(echo "$xrandr_out" | grep -c ' connected .*[0-9]\+x[0-9]\++[0-9]\++[0-9]\+')
+
+        if (( active_count < EXPECTED_MONITORS )); then
+          log_err "Still only ${active_count}/${EXPECTED_MONITORS} active after xrandr --auto — may need explicit --pos/--mode, or a physical check"
+        fi
     fi
 }
 
