@@ -244,6 +244,52 @@ check_display_health() {
 }
 
 # ─────────────────────────────────────────────
+# MONITOR RESTORE (4K Portrait-Modus)
+# ─────────────────────────────────────────────
+restore_monitors() {
+    log "Stelle 4K Portrait-Monitore wieder her..."
+
+    export DISPLAY=:0
+    export XAUTHORITY="/home/technorama/.Xauthority"
+
+    # Warte kurz, falls X-Server noch nicht bereit ist
+    sleep 2
+
+    # Prüfe, ob xrandr verfügbar ist
+    if ! command -v xrandr &>/dev/null; then
+        log_warn "xrandr not found — skipping monitor restore"
+        return 1
+    fi
+
+    # Alle Monitore zurücksetzen
+    for MONITOR in HDMI-A-1 HDMI-A-2 DVI-I-1 DVI-I-2; do
+        DISPLAY=:0 xrandr --output "$MONITOR" --off 2>/dev/null
+    done
+    sleep 2
+
+    # 4K Portrait-Konfiguration
+    log "Setze HDMI-A-1 → right (0,0)"
+    DISPLAY=:0 xrandr --output HDMI-A-1 --mode 2160x3840 --pos 0x0 --rotate right 2>/dev/null
+
+    log "Setze HDMI-A-2 → left (2160,0)"
+    DISPLAY=:0 xrandr --output HDMI-A-2 --mode 2160x3840 --pos 2160x0 --rotate left 2>/dev/null
+
+    log "Setze DVI-I-1 → right (4320,0)"
+    DISPLAY=:0 xrandr --output DVI-I-1 --mode 2160x3840 --pos 4320x0 --rotate right 2>/dev/null
+
+    log "Setze DVI-I-2 → left (6480,0)"
+    DISPLAY=:0 xrandr --output DVI-I-2 --mode 2160x3840 --pos 6480x0 --rotate left 2>/dev/null
+
+    sleep 1
+
+    # Ergebnis prüfen
+    log "Monitor-Konfiguration abgeschlossen:"
+    DISPLAY=:0 xrandr --query | grep " connected" | tee -a "$LOG_FILE"
+
+    return 0
+}
+
+# ─────────────────────────────────────────────
 # MULTI-MONITOR CHECK (xrandr via XWayland)
 # ─────────────────────────────────────────────
 EXPECTED_MONITORS=4
