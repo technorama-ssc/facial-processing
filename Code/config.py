@@ -79,17 +79,12 @@ button_to_index = {
 
 SCREEN_W, SCREEN_H = 1080, 1920
 
-<<<<<<< Updated upstream
-MONITOR_POSITIONS = resolve_monitor_positions()
-=======
 MONITOR_POSITIONS = [
     (11520,0),   # DVI-I-1   (leftmost)
     (7680,0),   # DVI-I-2
     (15840,0),   # HDMI-A-1
     (13680,0),   # HDMI-A-2  (rightmost)
 ]
-
->>>>>>> Stashed changes
 
 # ====================================================================== #
 #  FACE ENHANCER FILTER CONFIGURATION
