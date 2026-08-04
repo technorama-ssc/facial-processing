@@ -1,3 +1,32 @@
+#!/usr/bin/env python3
+"""
+identify_and_configure_monitors.py
+
+EINMALIGER Kalibrierungs-Wizard.
+
+Was er automatisiert:
+  - Erkennung aller angeschlossenen Monitore + deren EDID-Beschreibung (via wlr-randr)
+  - Anzeige eines Testfensters PRO physischem Monitor (an der richtigen Stelle),
+    damit ihr seht, welche Beschreibung zu welchem physischen Bildschirm gehört
+  - Automatisches Schreiben von:
+        ~/.config/kanshi/config          (für labwc/Desktop)
+        ~/.config/monitor_map.json       (für euer main.py / monitor_resolver.py)
+
+Was NICHT automatisierbar ist (braucht einmalig einen Menschen):
+  - Welcher physische Monitor links/rechts steht
+  - Ob er gerade richtig rum oder auf dem Kopf hängt
+  Das wird hier per kurzer Ja/Nein- bzw. Zahleneingabe abgefragt -- danach
+  ist alles vollautomatisch (self-healing bei jedem Reboot/Reconnect, egal
+  in welcher Reihenfolge evdi die DisplayLink-Ausgänge erkennt).
+
+Voraussetzungen:
+  sudo apt install python3-tk
+  (wlr-randr und kanshi müssen bereits installiert sein, siehe vorheriges Skript)
+
+Ausführen direkt auf dem Pi-Desktop (nicht per reinem SSH ohne X-Forwarding):
+  python3 identify_and_configure_monitors.py
+"""
+
 import json
 import re
 import subprocess
@@ -28,6 +57,13 @@ def parse_outputs(raw: str):
     Gibt eine Liste von dicts zurück:
     [{"name": "DVI-I-1", "desc": "...", "width": 1920, "height": 1080}, ...]
     Nur Outputs, die aktuell "connected"/mit Modus sind.
+
+    Erwartetes wlr-randr Format (Ausschnitt):
+        DVI-I-1 "Club3D Inc. XYZ 0x00001234 (DVI-I-1)"
+          ...
+          Modes:
+            1920x1080 px, 60.000000 Hz (preferred, current)
+            ...
     """
     outputs = []
     current = None
@@ -39,14 +75,31 @@ def parse_outputs(raw: str):
             current = {"name": header.group(1), "desc": header.group(2), "width": None, "height": None}
             continue
         if current is not None:
-            mode = re.search(r'(\d+)x(\d+)@[\d.]+ Hz \(current\)', line)
+            # Deckt sowohl "1920x1080 px, 60.000000 Hz (current)" als auch
+            # ältere/andere Varianten ohne " px" ab, solange "current" markiert ist.
+            mode = re.search(
+                r'(\d+)x(\d+)\s*(?:px)?[,\s]+[\d.]+\s*Hz\s*\([^)]*current[^)]*\)',
+                line,
+                re.IGNORECASE,
+            )
             if mode:
                 current["width"] = int(mode.group(1))
                 current["height"] = int(mode.group(2))
     if current:
         outputs.append(current)
-    # Nur Outputs mit erkannter Auflösung sind wirklich aktiv angeschlossen
-    return [o for o in outputs if o["width"] and o["height"]]
+
+    detected = [o for o in outputs if o["width"] and o["height"]]
+
+    if len(detected) < 2:
+        print("\n--- DEBUG: rohe wlr-randr Ausgabe (Parsing fehlgeschlagen) ---", file=sys.stderr)
+        print(raw, file=sys.stderr)
+        print("--- Ende DEBUG ---\n", file=sys.stderr)
+        print(
+            "Bitte diese Ausgabe kopieren und mir schicken, falls das Problem bestehen bleibt.",
+            file=sys.stderr,
+        )
+
+    return detected
 
 
 def show_identify_windows(outputs):
