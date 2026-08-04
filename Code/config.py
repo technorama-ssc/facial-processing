@@ -1,4 +1,5 @@
 import os
+from monitor_resolver import resolve_monitor_positions
 
 # Base directory = wherever this config file lives
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -78,13 +79,7 @@ button_to_index = {
 
 SCREEN_W, SCREEN_H = 1080, 1920
 
-MONITOR_POSITIONS = [
-    (1721, 0),   # DVI-I-1   (leftmost)
-    (2801, 0),   # DVI-I-2
-    (3881, 0),   # HDMI-A-1
-    (4961, 0),   # HDMI-A-2  (rightmost)
-]
-
+MONITOR_POSITIONS = resolve_monitor_positions()
 
 # ====================================================================== #
 #  FACE ENHANCER FILTER CONFIGURATION
