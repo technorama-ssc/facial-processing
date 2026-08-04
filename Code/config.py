@@ -76,13 +76,14 @@ button_to_index = {
 }
 
 
-SCREEN_W, SCREEN_H = 1080, 1920
+SCREEN_W = 2160
+SCREEN_H = 3840
 
 MONITOR_POSITIONS = [
-    (7680, 0),   # DVI-I-1   (leftmost)
-    (11520, 0),   # DVI-I-2
     (13680, 0),   # HDMI-A-1
     (15840, 0),   # HDMI-A-2  (rightmost)
+    (7680, 0),  # DVI-I-1   (leftmost)
+    (11520, 0),  # DVI-I-2
 ]
 
 
