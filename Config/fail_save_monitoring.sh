@@ -269,26 +269,22 @@ check_monitors() {
     active_count=$(echo "$xrandr_out" | grep -c ' connected .*[0-9]\+x[0-9]\++[0-9]\++[0-9]\+')
 
     if (( connected_count < EXPECTED_MONITORS )); then
-        log_err "Only ${connected_count}/${EXPECTED_MONITORS} display outputs detected by xrandr — check cables/EDID (this is a hardware-level issue, not something a restart fixes)"
+        log_err "Only ${connected_count}/${EXPECTED_MONITORS} display outputs detected by xrandr — check cables/EDID"
     fi
 
     if (( active_count < EXPECTED_MONITORS )); then
-        log_warn "Only ${active_count}/${EXPECTED_MONITORS} monitors active — attempting to re-enable inactive outputs"
+        log_warn "Only ${active_count}/${EXPECTED_MONITORS} monitors active — attempting to restore..."
+        restore_monitors
+    fi
 
-        for out in "${connected_outputs[@]}"; do
-            if ! echo "$xrandr_out" | grep "^${out} connected" | grep -q '[0-9]\+x[0-9]\++[0-9]\++[0-9]\+'; then
-                log_warn "Enabling inactive output: $out"
-                xrandr --output "$out" --auto 2>>"$LOG_DIR/xrandr.log"
-            fi
-        done
-
-        sleep 2
-        xrandr_out=$(xrandr --query 2>/dev/null)
-        active_count=$(echo "$xrandr_out" | grep -c ' connected .*[0-9]\+x[0-9]\++[0-9]\++[0-9]\+')
-
-        if (( active_count < EXPECTED_MONITORS )); then
-          log_err "Still only ${active_count}/${EXPECTED_MONITORS} active after xrandr --auto — may need explicit --pos/--mode, or a physical check"
-        fi
+    # Zusätzlich: Prüfe, ob alle Monitore die richtige Rotation haben
+    if echo "$xrandr_out" | grep -E "(HDMI-A-1|DVI-I-1)" | grep -qv "right"; then
+        log_warn "Monitor rotation incorrect — restoring..."
+        restore_monitors
+    fi
+    if echo "$xrandr_out" | grep -E "(HDMI-A-2|DVI-I-2)" | grep -qv "left"; then
+        log_warn "Monitor rotation incorrect — restoring..."
+        restore_monitors
     fi
 }
 
