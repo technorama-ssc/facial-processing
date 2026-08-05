@@ -197,7 +197,7 @@ declare -a PACKAGES=(
     "numpy|numpy|>=2.0|NumPy"
     "cv2|opencv-python||OpenCV"
     "mediapipe|mediapipe|==0.10.18|MediaPipe"
-    "google.protobuf|protobuf||Protobuf"
+    "google.protobuf|protobuf|>=4.25.3,<5|Protobuf"
     "lgpio|lgpio||lgpio"
     "flask|flask||Flask"
 )
