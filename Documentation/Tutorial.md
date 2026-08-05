@@ -17,12 +17,12 @@ You can find the correct values using following commands directly on your raspbe
 
 * 3.) To set up the connection to the docking station you'll need to use following command:
 ```
-bash facial_processing/Config/display_setup.sh
+bash facial-processing/Config/display_setup.sh
 ```
 
 * 4.) To set everything else up you'll need to use this command:
 ```
-bash facial_processing/Config/setup.sh
+bash facial-processing/Config/setup.sh
 ```
 *it might take some time to set everything up. The Pi will reboot automatically at the end of the script*
 
