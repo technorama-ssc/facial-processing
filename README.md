@@ -105,6 +105,11 @@ facial-processing/
 
 You can find everything that you need to set up this project in the [Tutorial](./Documentation/Tutorial.md)
 
+Additionally after you've setup your Pi, please check your monitor positions adjust them if needed.
+
+That you can do over Pi symbol -> Preferences -> Control Center (enter password) -> Screens.
+From there you can drag and drop or right-click to rotate
+
 ---
 
 ## The 12 Filters
