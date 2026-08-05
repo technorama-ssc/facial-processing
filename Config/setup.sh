@@ -196,7 +196,7 @@ pkg_installed() {
 declare -a PACKAGES=(
     "numpy|numpy|>=2.0|NumPy"
     "cv2|opencv-python||OpenCV"
-    "mediapipe|mediapipe||MediaPipe"
+    "mediapipe|mediapipe|==0.10.18|MediaPipe"
     "google.protobuf|protobuf||Protobuf"
     "lgpio|lgpio||lgpio"
     "flask|flask||Flask"
